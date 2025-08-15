@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Filter, Phone, Mail, ArrowRight } from "lucide-react";
+import { MapPin, Search, Filter, Phone, Mail, ArrowRight, HistoryIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import React, { useState, useEffect } from "react";
 import {
@@ -419,7 +419,7 @@ const Index = () => {
             </div>
             <div className="text-center">
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Phone className="text-green-600 h-8 w-8" />
+                <HistoryIcon className="text-green-600 h-8 w-8" />
               </div>
               <h4 className="text-xl font-semibold mb-2">Historia y Cultura</h4>
               <p className="text-gray-600">Patrimonio que impulsa el turismo.</p>

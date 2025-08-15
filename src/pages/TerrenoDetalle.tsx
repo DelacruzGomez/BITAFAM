@@ -1,21 +1,18 @@
 import { useParams, Link } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  MapPin, ArrowLeft, Phone, Mail,
-  MessageSquare, Share2, Heart
-} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { MapPin, ArrowLeft, Phone, Mail, MessageSquare, Share2, Heart } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ContactForm from '@/components/ContactForm';
 import { supabase } from '@/lib/supabaseClient';
 import { useSession } from '@supabase/auth-helpers-react';
 
 const TerrenoDetalle = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const session = useSession();
   const currentUser = session?.user;
-
+  
   const [terreno, setTerreno] = useState<any>(null);
   const [imagenActual, setImagenActual] = useState(0);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -38,6 +35,21 @@ const TerrenoDetalle = () => {
     fetchTerreno();
   }, [id]);
 
+  const enviarEmail = () => {
+    if (!terreno) return '#';
+    const email = 'yoelroc@gmail.com';
+    const asunto = encodeURIComponent(`Consulta sobre terreno: ${terreno.titulo}`);
+    const cuerpo = encodeURIComponent(`Hola,\n\nEstoy interesado en obtener más información sobre el terreno "${terreno.titulo}". Por favor, contáctenme.\n\nGracias.`);
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${asunto}&body=${cuerpo}`;
+  };
+
+  const contactarWhatsApp = () => {
+    if (!terreno) return 'https://wa.me/998026135';
+    const phone = '998026135';
+    const mensaje = encodeURIComponent(`Hola, estoy interesado en el terreno "${terreno.titulo}". Por favor, contáctenme.`);
+    return `https://wa.me/${phone}?text=${mensaje}`;
+  };
+
   if (!terreno) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -51,7 +63,7 @@ const TerrenoDetalle = () => {
     );
   }
 
-  const imagenes = terreno.imagenes || [terreno.imagen];
+  const imagenes: string[] = terreno.imagenes || [terreno.imagen];
   const detalles = {
     dimensiones: terreno.dimensiones || 'No especificado',
     topografia: terreno.topografia || 'No especificado',
@@ -95,18 +107,15 @@ const TerrenoDetalle = () => {
                     alt={terreno.titulo}
                     className="w-full h-96 object-cover rounded-t-lg"
                   />
-
                   <Badge className="absolute top-4 right-4 bg-green-600 text-white" variant="secondary">
                     {terreno.tipo}
                   </Badge>
-
                   {terreno.status === 'vendido' && (
                     <div className="absolute top-4 left-4 bg-red-600 text-white text-sm font-semibold px-3 py-1 rounded shadow-md">
                       VENDIDO
                     </div>
                   )}
                 </div>
-
                 <div className="p-4">
                   <div className="flex space-x-2 overflow-x-auto">
                     {imagenes.map((img: string, index: number) => (
@@ -136,21 +145,17 @@ const TerrenoDetalle = () => {
                       {terreno.ubicacion}
                     </div>
                   </div>
-
                   {currentUser?.id === terreno.user_id && (
                     <Button
                       size="sm"
                       className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                      onClick={() => {
-                        window.location.href = `/editar/${terreno.id}`;
-                      }}
+                      onClick={() => window.location.href = `/editar/${terreno.id}`}
                     >
                       Editar
                     </Button>
                   )}
                 </div>
               </CardHeader>
-
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="bg-green-50 p-4 rounded-lg">
@@ -161,9 +166,7 @@ const TerrenoDetalle = () => {
                   </div>
                   <div className="bg-blue-50 p-4 rounded-lg">
                     <h4 className="font-semibold text-blue-800 mb-2">Área</h4>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {terreno.area} m²
-                    </p>
+                    <p className="text-2xl font-bold text-blue-600">{terreno.area} m²</p>
                   </div>
                 </div>
                 <p className="text-gray-700 text-lg">{terreno.descripcion}</p>
@@ -197,9 +200,7 @@ const TerrenoDetalle = () => {
                     <h4 className="font-semibold mb-2">Servicios Disponibles</h4>
                     <div className="flex flex-wrap gap-2">
                       {detalles.servicios.map((servicio: string, index: number) => (
-                        <Badge key={index} variant="outline">
-                          {servicio}
-                        </Badge>
+                        <Badge key={index} variant="outline">{servicio}</Badge>
                       ))}
                     </div>
                   </div>
@@ -214,9 +215,7 @@ const TerrenoDetalle = () => {
                   <div className="mt-6">
                     <Button
                       className="w-full bg-yellow-500 hover:bg-yellow-600 text-white"
-                      onClick={() => {
-                        window.location.href = `/editar/${terreno.id}`;
-                      }}
+                      onClick={() => window.location.href = `/editar/${terreno.id}`}
                     >
                       Editar publicación
                     </Button>
@@ -233,23 +232,37 @@ const TerrenoDetalle = () => {
                 <CardTitle className="text-center">¿Interesado en este terreno?</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700"
+                <Button
+                  className="w-full bg-blue-600 hover:bg-yellow-700"
                   onClick={() => setMostrarFormulario(!mostrarFormulario)}
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Solicitar Información
                 </Button>
-                
-                <Button variant="outline" className="w-full">
-                  <Phone className="h-4 w-4 mr-2" />
-                  Llamar Ahora
-                </Button>
-                
-                <Button variant="outline" className="w-full">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Enviar Email
-                </Button>
+
+                <a
+                  href={enviarEmail()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <Button className="w-full bg-red-600 hover:bg-yellow-700 flex items-center justify-center mt-2">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Enviar Email
+                  </Button>
+                </a>
+
+                <a
+                  href={contactarWhatsApp()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
+                >
+                  <Button className="w-full bg-green-600 hover:bg-yellow-700 flex items-center justify-center mt-2">
+                    <Phone className="h-4 w-4 mr-2" />
+                    WhatsApp BITAFAM
+                  </Button>
+                </a>
 
                 {mostrarFormulario && (
                   <div className="mt-6">
