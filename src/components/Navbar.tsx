@@ -197,10 +197,13 @@ const Navbar = () => {
           <img src="/bitafamcolor.png" alt="Logo BITAFAM" className="h-12 w-auto object-contain" />
         </Link>
 
-        {!isAdmin && (
+         {!isAdmin && (
           <div className="hidden md:flex flex-1 justify-center">
-            <span className="text-lg font-semibold text-black-700">
-              Tu socio confiable en la búsqueda del terreno perfecto
+            <span
+              className="text-lg font-semibold text-black-700"
+              style={{ fontFamily: "'Marisa', cursive", fontWeight: 700 }}
+            >
+              Tu socio confiable en la búsqueda del terreno perfecto...
             </span>
           </div>
         )}
@@ -233,7 +236,9 @@ const Navbar = () => {
                     <ul className="space-y-3">
                       {solicitudesAdmin.map((sol) => (
                         <li key={sol.id} className="border rounded p-2 flex flex-col space-y-2">
-                          <p><strong>Solicitud de:</strong> {sol.user_name}</p>
+                          <p>
+                            <strong>Solicitud de:</strong> {sol.user_name}
+                          </p>
                           <pre className="whitespace-pre-wrap max-h-40 overflow-auto bg-gray-50 p-2 rounded text-xs">
                             {JSON.stringify(sol.datos_formulario, null, 2)}
                           </pre>
@@ -340,16 +345,15 @@ const Navbar = () => {
             </>
           )}
 
-          {/* Mostrar botón "Contactar BITAFAM" SOLO para usuario (no admin) */}
-         
-            {userRole !== "admin" && (
-              <a href="https://wa.me/998026135" target="_blank" rel="noopener noreferrer">
-                <Button className="bg-green-600 hover:bg-green-700 flex items-center">
-                  <Phone className="h-4 w-4 mr-2" />
-                  Contactar BITAFAM
-                </Button>
-              </a>
-            )}
+          {/* Mostrar botón "Contactar BITAFAM" a todos menos admin */}
+          {userRole !== "admin" && (
+            <a href="https://wa.me/998026135" target="_blank" rel="noopener noreferrer">
+              <Button className="bg-green-600 hover:bg-green-700 flex items-center">
+                <Phone className="h-4 w-4 mr-2" />
+                Contactar BITAFAM
+              </Button>
+            </a>
+          )}
 
           {!user && (
             <Link to="/login">

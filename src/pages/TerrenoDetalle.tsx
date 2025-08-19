@@ -104,29 +104,27 @@ const TerrenoDetalle = () => {
 
   // Función para compartir usando Web Share API o copiar URL
   const handleShare = async () => {
-  if (!terreno) return;
+    if (!terreno) return;
 
-  const shareData = {
-    title: terreno.titulo,
-    url: window.location.href,
-  };
+    const shareData = {
+      title: terreno.titulo,
+      url: window.location.href,
+    };
 
-  try {
-    if (navigator.canShare && navigator.canShare(shareData)) {
-      await navigator.share(shareData);
-      console.log("Compartido correctamente");
-    } else {
-      // Fallback: copiar url al portapapeles
-      await navigator.clipboard.writeText(shareData.url);
-      alert("Enlace copiado al portapapeles");
+    try {
+      if (navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+        console.log("Compartido correctamente");
+      } else {
+        // Fallback: copiar url al portapapeles
+        await navigator.clipboard.writeText(shareData.url);
+        alert("Enlace copiado al portapapeles");
+      }
+    } catch (error) {
+      console.error("Error en compartir:", error);
+      alert("No se pudo compartir el contenido.");
     }
-  } catch (error) {
-    // Aquí puede ir manejo de cancelación o error de permiso
-    console.error("Error en compartir:", error);
-    alert("No se pudo compartir el contenido.");
-  }
-};
-
+  };
 
   // Función para alternar estado guardado
   const toggleGuardar = () => {
@@ -311,6 +309,7 @@ const TerrenoDetalle = () => {
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Solicitar Información
                 </Button>
+
                 <a
                   href={enviarEmail()}
                   target="_blank"
@@ -322,6 +321,7 @@ const TerrenoDetalle = () => {
                     Enviar Email
                   </Button>
                 </a>
+
                 <a
                   href={contactarWhatsApp()}
                   target="_blank"
@@ -333,11 +333,13 @@ const TerrenoDetalle = () => {
                     WhatsApp BITAFAM
                   </Button>
                 </a>
+
                 {mostrarFormulario && (
                   <div className="mt-6">
                     <ContactForm terrenoId={terreno.id} />
                   </div>
                 )}
+
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold mb-2">Información de Contacto</h4>
                   <div className="space-y-2 text-sm text-gray-600">
@@ -346,6 +348,7 @@ const TerrenoDetalle = () => {
                     <p>📍 Alfonso Ugarte 101, Ayacucho</p>
                   </div>
                 </div>
+
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-blue-800 mb-2">Horarios de Atención</h4>
                   <div className="space-y-1 text-sm text-blue-600">
