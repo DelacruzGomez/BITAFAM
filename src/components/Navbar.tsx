@@ -341,14 +341,15 @@ const Navbar = () => {
           )}
 
           {/* Mostrar botón "Contactar BITAFAM" SOLO para usuario (no admin) */}
-          {isUser && (
-            <a href="https://wa.me/998026135" target="_blank" rel="noopener noreferrer">
-              <Button className="bg-green-600 hover:bg-green-700 flex items-center">
-                <Phone className="h-4 w-4 mr-2" />
-                Contactar BITAFAM
-              </Button>
-            </a>
-          )}
+         
+            {userRole !== "admin" && (
+              <a href="https://wa.me/998026135" target="_blank" rel="noopener noreferrer">
+                <Button className="bg-green-600 hover:bg-green-700 flex items-center">
+                  <Phone className="h-4 w-4 mr-2" />
+                  Contactar BITAFAM
+                </Button>
+              </a>
+            )}
 
           {!user && (
             <Link to="/login">
