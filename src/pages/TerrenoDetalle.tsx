@@ -103,22 +103,30 @@ const TerrenoDetalle = () => {
   };
 
   // Función para compartir usando Web Share API o copiar URL
-  const handleShare = () => {
-    const url = window.location.href;
-    if (navigator.share) {
-      navigator
-        .share({
-          title: terreno.titulo,
-          url,
-        })
-        .catch((error) => console.error("Error compartiendo:", error));
-    } else {
-      // Fallback: copiar al portapapeles
-      navigator.clipboard.writeText(url).then(() => {
-        alert("Enlace copiado al portapapeles");
-      });
-    }
+  const handleShare = async () => {
+  if (!terreno) return;
+
+  const shareData = {
+    title: terreno.titulo,
+    url: window.location.href,
   };
+
+  try {
+    if (navigator.canShare && navigator.canShare(shareData)) {
+      await navigator.share(shareData);
+      console.log("Compartido correctamente");
+    } else {
+      // Fallback: copiar url al portapapeles
+      await navigator.clipboard.writeText(shareData.url);
+      alert("Enlace copiado al portapapeles");
+    }
+  } catch (error) {
+    // Aquí puede ir manejo de cancelación o error de permiso
+    console.error("Error en compartir:", error);
+    alert("No se pudo compartir el contenido.");
+  }
+};
+
 
   // Función para alternar estado guardado
   const toggleGuardar = () => {
