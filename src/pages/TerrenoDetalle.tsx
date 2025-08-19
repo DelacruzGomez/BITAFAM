@@ -1,54 +1,52 @@
-import { useParams, Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { MapPin, ArrowLeft, Phone, Mail, MessageSquare, Share2, Heart } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import ContactForm from '@/components/ContactForm';
-import { supabase } from '@/lib/supabaseClient';
-import { useSession } from '@supabase/auth-helpers-react';
+// src/pages/TerrenoDetalle.tsx
+import { useParams, Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  MapPin,
+  ArrowLeft,
+  Phone,
+  Mail,
+  MessageSquare,
+  Share2,
+  Heart,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import ContactForm from "@/components/ContactForm";
+import { supabase } from "@/lib/supabaseClient";
+import { useSession } from "@supabase/auth-helpers-react";
 
 const TerrenoDetalle = () => {
   const { id } = useParams<{ id: string }>();
   const session = useSession();
   const currentUser = session?.user;
-  
   const [terreno, setTerreno] = useState<any>(null);
   const [imagenActual, setImagenActual] = useState(0);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [guardado, setGuardado] = useState(false);
 
   useEffect(() => {
     const fetchTerreno = async () => {
       const { data, error } = await supabase
-        .from('land_properties')
-        .select('*')
-        .eq('id', id)
+        .from("land_properties")
+        .select("*")
+        .eq("id", id)
         .single();
-
       if (error) {
-        console.error('Error al obtener terreno:', error);
+        console.error("Error al obtener terreno:", error);
       } else {
         setTerreno(data);
       }
     };
-
     fetchTerreno();
   }, [id]);
 
-  const enviarEmail = () => {
-    if (!terreno) return '#';
-    const email = 'yoelroc@gmail.com';
-    const asunto = encodeURIComponent(`Consulta sobre terreno: ${terreno.titulo}`);
-    const cuerpo = encodeURIComponent(`Hola,\n\nEstoy interesado en obtener más información sobre el terreno "${terreno.titulo}". Por favor, contáctenme.\n\nGracias.`);
-    return `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${asunto}&body=${cuerpo}`;
-  };
-
-  const contactarWhatsApp = () => {
-    if (!terreno) return 'https://wa.me/998026135';
-    const phone = '998026135';
-    const mensaje = encodeURIComponent(`Hola, estoy interesado en el terreno "${terreno.titulo}". Por favor, contáctenme.`);
-    return `https://wa.me/${phone}?text=${mensaje}`;
-  };
+  // Opcional: cargar estado guardado (favorito) desde BD si tienes esa funcionalidad
+  // Aquí solo estado local simulado
+  useEffect(() => {
+    setGuardado(false); // default sin guardar. En producción consulta a BD
+  }, [id]);
 
   if (!terreno) {
     return (
@@ -65,35 +63,97 @@ const TerrenoDetalle = () => {
 
   const imagenes: string[] = terreno.imagenes || [terreno.imagen];
   const detalles = {
-    dimensiones: terreno.dimensiones || 'No especificado',
-    topografia: terreno.topografia || 'No especificado',
-    acceso: terreno.acceso || 'No especificado',
-    zonificacion: terreno.zonificacion || 'No especificado',
-    servicios: terreno.servicios ? terreno.servicios.split(',') : [],
-    documentos: terreno.documentacion || 'No especificado',
+    dimensiones: terreno.dimensiones || "No especificado",
+    topografia: terreno.topografia || "No especificado",
+    acceso: terreno.acceso || "No especificado",
+    zonificacion: terreno.zonificacion || "No especificado",
+    servicios: terreno.servicios ? terreno.servicios.split(",") : [],
+    documentos: terreno.documentacion || "No especificado",
+  };
+
+  // Formatear precio según moneda del terreno
+  const formatPrecio = (precio: number, moneda: string) => {
+    const currencyCode = moneda === "USD" ? "USD" : "PEN";
+    const locale = moneda === "USD" ? "en-US" : "es-PE";
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(precio);
+  };
+
+  const enviarEmail = () => {
+    if (!terreno) return "#";
+    const email = "yoelroc@gmail.com";
+    const asunto = encodeURIComponent(`Consulta sobre terreno: ${terreno.titulo}`);
+    const cuerpo = encodeURIComponent(
+      `Hola,\n\nEstoy interesado en obtener más información sobre el terreno "${terreno.titulo}". Por favor, contáctenme.\n\nGracias.`
+    );
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${asunto}&body=${cuerpo}`;
+  };
+
+  const contactarWhatsApp = () => {
+    if (!terreno) return "https://wa.me/998026135";
+    const phone = "998026135";
+    const mensaje = encodeURIComponent(
+      `Hola, estoy interesado en el terreno "${terreno.titulo}". Por favor, contáctenme.`
+    );
+    return `https://wa.me/${phone}?text=${mensaje}`;
+  };
+
+  // Función para compartir usando Web Share API o copiar URL
+  const handleShare = () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator
+        .share({
+          title: terreno.titulo,
+          url,
+        })
+        .catch((error) => console.error("Error compartiendo:", error));
+    } else {
+      // Fallback: copiar al portapapeles
+      navigator.clipboard.writeText(url).then(() => {
+        alert("Enlace copiado al portapapeles");
+      });
+    }
+  };
+
+  // Función para alternar estado guardado
+  const toggleGuardar = () => {
+    // Aquí iría lógica real de guardar/desguardar en BD, mientras simulamos.
+    setGuardado((prev) => !prev);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link to="/" className="flex items-center space-x-2 text-green-600 hover:text-green-700">
+          <Link
+            to="/"
+            className="flex items-center space-x-2 text-green-600 hover:text-green-700"
+          >
             <ArrowLeft className="h-5 w-5" />
             <span>Volver al catálogo</span>
           </Link>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 className="h-4 w-4 mr-2" />
               Compartir
             </Button>
-            <Button variant="outline" size="sm">
-              <Heart className="h-4 w-4 mr-2" />
-              Guardar
+            <Button
+              variant={guardado ? "default" : "outline"}
+              size="sm"
+              onClick={toggleGuardar}
+              title={guardado ? "Quitar de favoritos" : "Guardar como favorito"}
+            >
+              <Heart className={`h-4 w-4 mr-2 ${guardado ? "text-red-600" : ""}`} />
+              {guardado ? "Guardado" : "Guardar"}
             </Button>
           </div>
         </div>
       </header>
-
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Columna Principal */}
@@ -107,10 +167,13 @@ const TerrenoDetalle = () => {
                     alt={terreno.titulo}
                     className="w-full h-96 object-cover rounded-t-lg"
                   />
-                  <Badge className="absolute top-4 right-4 bg-green-600 text-white" variant="secondary">
+                  <Badge
+                    className="absolute top-4 right-4 bg-green-600 text-white"
+                    variant="secondary"
+                  >
                     {terreno.tipo}
                   </Badge>
-                  {terreno.status === 'vendido' && (
+                  {terreno.status === "vendido" && (
                     <div className="absolute top-4 left-4 bg-red-600 text-white text-sm font-semibold px-3 py-1 rounded shadow-md">
                       VENDIDO
                     </div>
@@ -124,7 +187,9 @@ const TerrenoDetalle = () => {
                         src={img}
                         alt={`Vista ${index + 1}`}
                         className={`w-20 h-20 object-cover rounded cursor-pointer border-2 ${
-                          imagenActual === index ? 'border-green-600' : 'border-gray-200'
+                          imagenActual === index
+                            ? "border-green-600"
+                            : "border-gray-200"
                         }`}
                         onClick={() => setImagenActual(index)}
                       />
@@ -133,13 +198,14 @@ const TerrenoDetalle = () => {
                 </div>
               </CardContent>
             </Card>
-
             {/* Información Principal */}
             <Card className="mb-6">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-2xl text-gray-800">{terreno.titulo}</CardTitle>
+                    <CardTitle className="text-2xl text-gray-800">
+                      {terreno.titulo}
+                    </CardTitle>
                     <div className="flex items-center text-gray-600 mt-1">
                       <MapPin className="h-5 w-5 mr-2" />
                       {terreno.ubicacion}
@@ -149,7 +215,7 @@ const TerrenoDetalle = () => {
                     <Button
                       size="sm"
                       className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                      onClick={() => window.location.href = `/editar/${terreno.id}`}
+                      onClick={() => (window.location.href = `/editar/${terreno.id}`)}
                     >
                       Editar
                     </Button>
@@ -161,7 +227,7 @@ const TerrenoDetalle = () => {
                   <div className="bg-green-50 p-4 rounded-lg">
                     <h4 className="font-semibold text-green-800 mb-2">Precio</h4>
                     <p className="text-2xl font-bold text-green-600">
-                      S/. {Number(terreno.precio).toLocaleString()}
+                      {formatPrecio(terreno.precio, terreno.moneda)}
                     </p>
                   </div>
                   <div className="bg-blue-50 p-4 rounded-lg">
@@ -172,7 +238,6 @@ const TerrenoDetalle = () => {
                 <p className="text-gray-700 text-lg">{terreno.descripcion}</p>
               </CardContent>
             </Card>
-
             {/* Detalles Técnicos */}
             <Card>
               <CardHeader>
@@ -200,7 +265,9 @@ const TerrenoDetalle = () => {
                     <h4 className="font-semibold mb-2">Servicios Disponibles</h4>
                     <div className="flex flex-wrap gap-2">
                       {detalles.servicios.map((servicio: string, index: number) => (
-                        <Badge key={index} variant="outline">{servicio}</Badge>
+                        <Badge key={index} variant="outline">
+                          {servicio}
+                        </Badge>
                       ))}
                     </div>
                   </div>
@@ -209,13 +276,11 @@ const TerrenoDetalle = () => {
                     <p className="text-gray-600">{detalles.documentos}</p>
                   </div>
                 </div>
-
-                {/* Mostrar botón de edición si es dueño */}
                 {currentUser?.id === terreno.user_id && (
                   <div className="mt-6">
                     <Button
                       className="w-full bg-yellow-500 hover:bg-yellow-600 text-white"
-                      onClick={() => window.location.href = `/editar/${terreno.id}`}
+                      onClick={() => (window.location.href = `/editar/${terreno.id}`)}
                     >
                       Editar publicación
                     </Button>
@@ -224,7 +289,6 @@ const TerrenoDetalle = () => {
               </CardContent>
             </Card>
           </div>
-
           {/* Sidebar de Contacto */}
           <div className="lg:col-span-1">
             <Card className="sticky top-4">
@@ -239,7 +303,6 @@ const TerrenoDetalle = () => {
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Solicitar Información
                 </Button>
-
                 <a
                   href={enviarEmail()}
                   target="_blank"
@@ -251,7 +314,6 @@ const TerrenoDetalle = () => {
                     Enviar Email
                   </Button>
                 </a>
-
                 <a
                   href={contactarWhatsApp()}
                   target="_blank"
@@ -263,13 +325,11 @@ const TerrenoDetalle = () => {
                     WhatsApp BITAFAM
                   </Button>
                 </a>
-
                 {mostrarFormulario && (
                   <div className="mt-6">
                     <ContactForm terrenoId={terreno.id} />
                   </div>
                 )}
-
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold mb-2">Información de Contacto</h4>
                   <div className="space-y-2 text-sm text-gray-600">
@@ -278,7 +338,6 @@ const TerrenoDetalle = () => {
                     <p>📍 Alfonso Ugarte 101, Ayacucho</p>
                   </div>
                 </div>
-
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-blue-800 mb-2">Horarios de Atención</h4>
                   <div className="space-y-1 text-sm text-blue-600">

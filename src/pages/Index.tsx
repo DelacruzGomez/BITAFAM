@@ -11,7 +11,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Search, Filter, Phone, Mail, ArrowRight, HistoryIcon } from "lucide-react";
+import {
+  MapPin,
+  Search,
+  Filter,
+  ArrowRight,
+  HistoryIcon,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import React, { useState, useEffect } from "react";
 import {
@@ -28,10 +34,11 @@ type Terreno = {
   id: number;
   titulo: string;
   precio: number;
-  area: string;
+  moneda?: string; // nueva propiedad para moneda
+  area: number;
   ubicacion: string;
   imagen: string;
-  portada: string | null; // ✅ nueva columna
+  portada: string | null;
   descripcion: string;
   tipo: string;
   status: string;
@@ -43,14 +50,14 @@ const carouselImages = [
   "/banner.png",
   "/fondo.png",
   "/fondo2.png",
-  "/fondo3.png",// Agrega las rutas de tus imágenes aquí
+  "/fondo3.png",
 ];
 
 const ITEMS_PER_PAGE = 6;
 
 const Index = () => {
-  const navigate = useNavigate(); // ✅  Dentro del componente
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [terrenos, setTerrenos] = useState<Terreno[]>([]);
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroPrecio, setFiltroPrecio] = useState("todos");
@@ -60,8 +67,10 @@ const Index = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Estado solicitud de usuario (para controlar si mostrar botón de publicar)
+  const [solicitudUserEstado, setSolicitudUserEstado] = useState<string | null>(null);
 
-   // Cambiar imagen del carrusel automáticamente cada 3 segundos
+  // Cambiar imagen del carrusel automáticamente cada 5 segundos
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentImageIndex((prevIndex) =>
@@ -78,8 +87,9 @@ const Index = () => {
       const { data, error } = await supabase
         .from("land_properties")
         .select("*")
-        //.eq("status", "disponible") // Puedes descomentar para filtrar terreno disponibles
+        //.eq("status", "disponible") // Puedes descomentar para filtrar terrenos disponibles
         .order("created_at", { ascending: false });
+
       if (error) {
         console.error("Error al cargar terrenos:", error.message);
       } else {
@@ -90,9 +100,32 @@ const Index = () => {
     fetchTerrenos();
   }, []);
 
+  // Cargar estado solicitud usuario
+  useEffect(() => {
+    const fetchSolicitudUserEstado = async () => {
+      if (!user) {
+        setSolicitudUserEstado(null);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("publicacion_solicitudes")
+        .select("estado")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        setSolicitudUserEstado(data.estado);
+      } else {
+        setSolicitudUserEstado(null);
+      }
+    };
+    fetchSolicitudUserEstado();
+  }, [user]);
+
   // Filtrado
   const terrenosFiltrados = terrenos.filter((terreno) => {
-    // CORRECCIÓN: uso == y ===, no asignación =
     const cumpleTipo =
       filtroTipo === "todos" || terreno.tipo.toLowerCase() === filtroTipo;
     const cumplePrecio =
@@ -114,9 +147,24 @@ const Index = () => {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  // Función para formatear precio según moneda
+  const formatPrecio = (precio: number, moneda: string = "PEN") => {
+    const currencyCode = moneda === "USD" ? "USD" : "PEN";
+    const locale = moneda === "USD" ? "en-US" : "es-PE";
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(precio);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-50">
+      {/* Navbar */}
       <Navbar />
+
       {/* Hero Section con carrusel de fondo */}
       <section
         className="relative h-96 text-white overflow-hidden bg-cover bg-center transition-all duration-1000"
@@ -132,19 +180,18 @@ const Index = () => {
               Encuentra tu Terreno Ideal en Ayacucho
             </h2>
             <p className="text-lg md:text-xl mb-6">
-              Invierte en el futuro. Descubre terrenos con ubicación
-              privilegiada en la histórica ciudad de Ayacucho.
+              Invierte en el futuro. Descubre terrenos con ubicación privilegiada
+              en la histórica ciudad de Ayacucho.
             </p>
             <Link to="/terrenos">
-            <Button
-              size="lg"
-              className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold"
-            >
-              Ver Catálogo
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+              <Button
+                size="lg"
+                className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold"
+              >
+                Ver Catálogo
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
             </Link>
-
           </div>
         </div>
         {/* TARJETA SOBRE NOSOTROS */}
@@ -154,8 +201,8 @@ const Index = () => {
             BITAFAM es tu socio confiable en la búsqueda del terreno perfecto, nos
             dedicamos a conectar a nuestros clientes con las mejores oportunidades
             de inversión, ofreciendo un servicio transparente, profesional y
-            personalizado. Nuestra misión es ayudarte a encontrar el lugar ideal para
-            construir tus sueños.
+            personalizado. Nuestra misión es ayudarte a encontrar el lugar ideal
+            para construir tus sueños.
           </p>
         </div>
       </section>
@@ -173,7 +220,7 @@ const Index = () => {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     setTerminoBusqueda(busqueda);
-                    setCurrentPage(1); // Reiniciar paginación al buscar
+                    setCurrentPage(1);
                   }
                 }}
                 className="flex-1"
@@ -258,11 +305,9 @@ const Index = () => {
                       alt={terreno.titulo}
                       className="w-full h-48 object-cover rounded-t-lg"
                     />
-                    {/* Tipo del terreno */}
                     <Badge className="absolute top-2 right-2 bg-green-600 text-white capitalize">
                       {terreno.tipo}
                     </Badge>
-                    {/* Rótulo VENDIDO */}
                     {terreno.status === "vendido" && (
                       <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 text-xs rounded">
                         VENDIDO
@@ -282,16 +327,15 @@ const Index = () => {
                     <p className="text-gray-600 mb-4">{terreno.descripcion}</p>
                     <div className="flex justify-between items-center mb-4">
                       <span className="text-2xl font-bold text-green-600">
-                        S/. {terreno.precio.toLocaleString()}
+                        {formatPrecio(terreno.precio, terreno.moneda || "PEN")}
                       </span>
-                      <span className="text-gray-500 font-medium">{terreno.area}</span>
+                      <span className="text-gray-500 font-medium">{terreno.area} m²</span>
                     </div>
                     <Link to={`/terreno/${terreno.id}`}>
                       <Button className="w-full bg-green-600 hover:bg-green-700 mb-2">
                         Ver Detalles
                       </Button>
                     </Link>
-                    {/* Mostrar acciones si es el dueño */}
                     {user && user.id === terreno.user_id && (
                       <div className="flex flex-col gap-2 mt-2">
                         <Button
@@ -308,9 +352,7 @@ const Index = () => {
                             if (!error) {
                               setTerrenos((prev) =>
                                 prev.map((t) =>
-                                  t.id === terreno.id
-                                    ? { ...t, status: nuevoEstado }
-                                    : t
+                                  t.id === terreno.id ? { ...t, status: nuevoEstado } : t
                                 )
                               );
                             } else {
@@ -357,8 +399,6 @@ const Index = () => {
                 </Card>
               ))}
             </div>
-
-            {/* Paginación */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center space-x-4 mt-8">
                 <Button
@@ -378,7 +418,6 @@ const Index = () => {
                 </Button>
               </div>
             )}
-
             {terrenosFiltrados.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">
@@ -389,7 +428,6 @@ const Index = () => {
           </>
         )}
       </section>
-
       {/* Sección Sobre Ayacucho */}
       <section className="bg-white py-16">
         <div className="container mx-auto px-4">
@@ -418,8 +456,8 @@ const Index = () => {
               <p className="text-gray-600">Nuevas oportunidades de inversión.</p>
             </div>
             <div className="text-center">
-              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <HistoryIcon className="text-green-600 h-8 w-8" />
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <HistoryIcon className="text-blue-600 h-8 w-8" />
               </div>
               <h4 className="text-xl font-semibold mb-2">Historia y Cultura</h4>
               <p className="text-gray-600">Patrimonio que impulsa el turismo.</p>
@@ -427,7 +465,6 @@ const Index = () => {
           </div>
         </div>
       </section>
-
       {/* FOOTER */}
       <footer className="bg-gray-800 text-white py-12">
         <div className="container mx-auto px-4">

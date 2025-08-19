@@ -1,3 +1,4 @@
+// src/pages/EditarTerreno.tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
@@ -11,9 +12,14 @@ export default function EditarTerreno() {
   const terrenoInicial = location.state?.terreno || null;
 
   const [loading, setLoading] = useState(!terrenoInicial);
+
   const [titulo, setTitulo] = useState(terrenoInicial?.titulo || "");
   const [descripcion, setDescripcion] = useState(terrenoInicial?.descripcion || "");
+
+  // Precio y moneda
   const [precio, setPrecio] = useState(terrenoInicial?.precio?.toString() || "");
+  const [moneda, setMoneda] = useState(terrenoInicial?.moneda || "PEN"); // PEN o USD
+
   const [ubicacion, setUbicacion] = useState(terrenoInicial?.ubicacion || "");
   const [area, setArea] = useState(terrenoInicial?.area?.toString() || "");
   const [tipo, setTipo] = useState(terrenoInicial?.tipo || "urbano");
@@ -30,42 +36,67 @@ export default function EditarTerreno() {
   const [servicios, setServicios] = useState(terrenoInicial?.servicios || "");
   const [documentacion, setDocumentacion] = useState(terrenoInicial?.documentacion || "");
 
+  // Función para formatear precio (solo para mostrar)
+  const formatPrecioDisplay = (value: string, monedaCode: string) => {
+    const numberValue = Number(value.replace(/[^0-9.]/g, ""));
+    if (isNaN(numberValue) || value === "") return "";
+    return new Intl.NumberFormat("es-PE", {
+      style: "currency",
+      currency: monedaCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numberValue);
+  };
+
+  // Controla el cambio del precio permitiendo escribir números y punto decimal
+  const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let rawValue = e.target.value;
+    // Permitir solo números y punto decimal
+    rawValue = rawValue.replace(/[^0-9.]/g, "");
+    setPrecio(rawValue);
+  };
+
   useEffect(() => {
-    if (!terrenoInicial) {
-      const fetchData = async () => {
-        const { data, error } = await supabase
-          .from("land_properties")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (error || !data) {
-          alert("Error al cargar los datos del terreno.");
-          navigate("/");
-          return;
-        }
-
-        setTitulo(data.titulo || "");
-        setDescripcion(data.descripcion || "");
-        setPrecio(data.precio?.toString() || "");
-        setUbicacion(data.ubicacion || "");
-        setArea(data.area?.toString() || "");
-        setTipo(data.tipo || "urbano");
-        setStatus(data.status || "disponible");
-        setImagenURLs(data.imagenes || []);
-        setPortada(data.portada || "");
-        setDimensiones(data.dimensiones || "");
-        setTopografia(data.topografia || "");
-        setAcceso(data.acceso || "");
-        setZonificacion(data.zonificacion || "");
-        setServicios(data.servicios || "");
-        setDocumentacion(data.documentacion || "");
-
-        setLoading(false);
-      };
-
-      fetchData();
+    if (terrenoInicial) {
+      setMoneda(terrenoInicial.moneda || "PEN");
+      setPrecio(terrenoInicial.precio?.toString() || "");
+      setLoading(false);
+      return;
     }
+    const fetchData = async () => {
+      const { data, error } = await supabase
+        .from("land_properties")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        alert("Error al cargar los datos del terreno.");
+        navigate("/");
+        return;
+      }
+
+      setTitulo(data.titulo || "");
+      setDescripcion(data.descripcion || "");
+      setPrecio(data.precio?.toString() || "");
+      setMoneda(data.moneda || "PEN");
+      setUbicacion(data.ubicacion || "");
+      setArea(data.area?.toString() || "");
+      setTipo(data.tipo || "urbano");
+      setStatus(data.status || "disponible");
+      setImagenURLs(data.imagenes || []);
+      setPortada(data.portada || "");
+      setDimensiones(data.dimensiones || "");
+      setTopografia(data.topografia || "");
+      setAcceso(data.acceso || "");
+      setZonificacion(data.zonificacion || "");
+      setServicios(data.servicios || "");
+      setDocumentacion(data.documentacion || "");
+
+      setLoading(false);
+    };
+
+    fetchData();
   }, [id, navigate, terrenoInicial]);
 
   const handleRemoveImage = (url: string) => {
@@ -76,6 +107,12 @@ export default function EditarTerreno() {
         setPortada(updated.length > 0 ? updated[0] : "");
       }
     }
+  };
+
+  const handleMonedaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nuevaMoneda = e.target.value;
+    setMoneda(nuevaMoneda);
+    // El precio permanece, solo cambia formato al mostrar
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,7 +128,6 @@ export default function EditarTerreno() {
         .upload(fileName, image);
 
       if (uploadError) {
-        console.error(uploadError);
         alert("Error al subir una imagen");
         setLoading(false);
         return;
@@ -106,7 +142,6 @@ export default function EditarTerreno() {
       }
     }
 
-    // Asegurar portada válida
     let portadaFinal = portada;
     if (!portadaFinal || !urls.includes(portadaFinal)) {
       portadaFinal = urls.length > 0 ? urls[0] : "";
@@ -118,6 +153,7 @@ export default function EditarTerreno() {
         titulo,
         descripcion,
         precio: parseFloat(precio),
+        moneda,
         ubicacion,
         imagenes: urls,
         portada: portadaFinal,
@@ -129,18 +165,18 @@ export default function EditarTerreno() {
         zonificacion,
         servicios,
         documentacion,
-        status
+        status,
       })
       .eq("id", id);
 
     if (updateError) {
-      console.error(updateError);
-      alert("Error al actualizar terreno");
+      alert("Error al actualizar terreno: " + updateError.message);
       setLoading(false);
       return;
     }
 
     alert("Terreno actualizado con éxito");
+    setLoading(false);
     navigate("/");
   };
 
@@ -152,14 +188,59 @@ export default function EditarTerreno() {
     <div className="p-4 max-w-xl mx-auto">
       <h2 className="text-2xl font-bold mb-4 text-center">Editar Terreno</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Campos */}
-        <input type="text" placeholder="Título" value={titulo} onChange={(e) => setTitulo(e.target.value)} className="w-full p-2 border rounded" required />
-        <textarea placeholder="Descripción" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full p-2 border rounded" required />
-        <input type="number" placeholder="Precio" value={precio} onChange={(e) => setPrecio(e.target.value)} className="w-full p-2 border rounded" required />
-        <input type="text" placeholder="Área en m²" value={area} onChange={(e) => setArea(e.target.value)} className="w-full p-2 border rounded" required />
-        <input type="text" placeholder="Ubicación" value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} className="w-full p-2 border rounded" required />
-
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full p-2 border rounded">
+        <input
+          type="text"
+          placeholder="Título"
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
+        <textarea
+          placeholder="Descripción"
+          value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
+        <input
+          type="text"
+          placeholder="Precio"
+          value={precio}
+          onChange={handlePrecioChange}
+          className="w-full p-2 border rounded"
+          required
+          inputMode="decimal"
+        />
+        <select
+          value={moneda}
+          onChange={handleMonedaChange}
+          className="w-full p-2 border rounded"
+        >
+          <option value="PEN">Soles Peruanos (S/.)</option>
+          <option value="USD">Dólares Americanos (US$)</option>
+        </select>
+        <input
+          type="text"
+          placeholder="Área en m²"
+          value={area}
+          onChange={(e) => setArea(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
+        <input
+          type="text"
+          placeholder="Ubicación"
+          value={ubicacion}
+          onChange={(e) => setUbicacion(e.target.value)}
+          className="w-full p-2 border rounded"
+          required
+        />
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          className="w-full p-2 border rounded"
+        >
           <option value="residencial">Residencial</option>
           <option value="comercial">Comercial</option>
           <option value="industrial">Industrial</option>
@@ -167,25 +248,66 @@ export default function EditarTerreno() {
           <option value="rural">Rural</option>
           <option value="urbano">Urbano</option>
         </select>
-
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full p-2 border rounded">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="w-full p-2 border rounded"
+        >
           <option value="disponible">Disponible</option>
           <option value="vendido">Vendido</option>
           <option value="reservado">Reservado</option>
         </select>
-
-        <input type="text" placeholder="Dimensiones" value={dimensiones} onChange={(e) => setDimensiones(e.target.value)} className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Topografía" value={topografia} onChange={(e) => setTopografia(e.target.value)} className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Acceso" value={acceso} onChange={(e) => setAcceso(e.target.value)} className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Zonificación" value={zonificacion} onChange={(e) => setZonificacion(e.target.value)} className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Servicios disponibles" value={servicios} onChange={(e) => setServicios(e.target.value)} className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Documentación" value={documentacion} onChange={(e) => setDocumentacion(e.target.value)} className="w-full p-2 border rounded" />
-
+        <input
+          type="text"
+          placeholder="Dimensiones"
+          value={dimensiones}
+          onChange={(e) => setDimensiones(e.target.value)}
+          className="w-full p-2 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Topografía"
+          value={topografia}
+          onChange={(e) => setTopografia(e.target.value)}
+          className="w-full p-2 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Acceso"
+          value={acceso}
+          onChange={(e) => setAcceso(e.target.value)}
+          className="w-full p-2 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Zonificación"
+          value={zonificacion}
+          onChange={(e) => setZonificacion(e.target.value)}
+          className="w-full p-2 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Servicios disponibles"
+          value={servicios}
+          onChange={(e) => setServicios(e.target.value)}
+          className="w-full p-2 border rounded"
+        />
+        <input
+          type="text"
+          placeholder="Documentación"
+          value={documentacion}
+          onChange={(e) => setDocumentacion(e.target.value)}
+          className="w-full p-2 border rounded"
+        />
         {/* Imágenes actuales */}
         <div className="grid grid-cols-3 gap-2">
           {imagenURLs.map((url, idx) => (
             <div key={idx} className="relative border rounded overflow-hidden">
-              <img src={url} alt={`Imagen ${idx + 1}`} className="h-24 w-full object-cover" />
+              <img
+                src={url}
+                alt={`Imagen ${idx + 1}`}
+                className="h-24 w-full object-cover"
+              />
               <button
                 type="button"
                 onClick={() => handleRemoveImage(url)}
@@ -206,7 +328,6 @@ export default function EditarTerreno() {
             </div>
           ))}
         </div>
-
         {/* Nuevas imágenes */}
         <input
           type="file"
@@ -215,12 +336,19 @@ export default function EditarTerreno() {
           onChange={(e) => setImagenes(Array.from(e.target.files || []))}
           className="block mt-2"
         />
-
         <div className="flex space-x-2">
-          <button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full"
+          >
             {loading ? "Actualizando..." : "Guardar Cambios"}
           </button>
-          <button type="button" onClick={() => navigate(-1)} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded w-full">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded w-full"
+          >
             Cancelar
           </button>
         </div>
