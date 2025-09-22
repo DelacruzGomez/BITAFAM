@@ -97,7 +97,6 @@ const Navbar = () => {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-
         if (!error && data) {
           setSolicitudUser(data);
         } else {
@@ -134,9 +133,7 @@ const Navbar = () => {
         servicios,
         documentacion,
       } = datosFormulario;
-
       const portada = imagenes && imagenes.length > 0 ? imagenes[0] : null;
-
       const { error: publicarError } = await supabase.from("land_properties").insert({
         user_id: userId,
         titulo,
@@ -156,12 +153,10 @@ const Navbar = () => {
         servicios,
         documentacion,
       });
-
       if (publicarError) {
         alert("Error al publicar terreno: " + publicarError.message);
         return;
       }
-
       const { error: errorUpdate } = await supabase
         .from("publicacion_solicitudes")
         .update({ estado: "aceptado" })
@@ -170,7 +165,6 @@ const Navbar = () => {
         alert("Error al actualizar estado de solicitud: " + errorUpdate.message);
         return;
       }
-
       alert("Solicitud aprobada y terreno publicado.");
     } else if (nuevoEstado === "rechazado") {
       const { error } = await supabase
@@ -191,16 +185,22 @@ const Navbar = () => {
   };
 
   return (
-    <header className="bg-white shadow-md relative">
-      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <Link to="/" className="flex items-center space-x-2">
-          <img src="/bitafamcolor.png" alt="Logo BITAFAM" className="h-12 w-auto object-contain" />
+    <header className="bg-white shadow-md relative z-50">
+      <div className="container mx-auto px-4 py-4 flex items-center justify-between flex-nowrap gap-4">
+        {/* Logo responsive */}
+        <Link to="/" className="flex-shrink-0">
+          <img
+            src="/bitafamcolor.png"
+            alt="Logo BITAFAM"
+            className="h-8 sm:h-10 md:h-12 w-auto object-contain"
+          />
         </Link>
 
-         {!isAdmin && (
-          <div className="hidden md:flex flex-1 justify-center">
+        {/* Texto centrado oculto en móviles */}
+        {!isAdmin && (
+          <div className="hidden md:flex flex-grow justify-center mx-4 min-w-0">
             <span
-              className="text-lg font-semibold text-black-700"
+              className="text-lg font-semibold text-gray-700 truncate"
               style={{ fontFamily: "'Marisa', cursive", fontWeight: 700 }}
             >
               Tu socio confiable en la búsqueda del terreno perfecto...
@@ -208,178 +208,243 @@ const Navbar = () => {
           </div>
         )}
 
-        <nav className="flex items-center gap-4 relative">
-          {isAdmin && (
+        {/* Navegación y botones */}
+        <nav className="flex items-center gap-2 flex-shrink-0">
+          {(isAdmin || isUser) && (
             <>
-              <button
-                title="Notificaciones"
-                onClick={() => setShowNotificationAdmin((prev) => !prev)}
-                className="relative"
-              >
-                <Bell className="h-6 w-6 text-gray-700 hover:text-gray-900" />
-                {solicitudesAdmin.length > 0 && (
-                  <span className="absolute top-0 right-0 rounded-full bg-red-600 text-white text-xs px-1.5">
-                    {solicitudesAdmin.length}
-                  </span>
-                )}
-              </button>
+              {/* Notificaciones para admin */}
+              {isAdmin && (
+                <div className="relative">
+                  <button
+                    title="Notificaciones"
+                    onClick={() => {
+                      setShowNotificationAdmin((prev) => !prev);
+                      setShowNotificationUser(false);
+                    }}
+                    className="relative focus:outline-none"
+                    aria-haspopup="true"
+                    aria-expanded={showNotificationAdmin}
+                  >
+                    <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900" />
+                    {solicitudesAdmin.length > 0 && (
+                      <span className="absolute -top-1 -right-1 rounded-full bg-red-600 text-white text-xs px-1">
+                        {solicitudesAdmin.length}
+                      </span>
+                    )}
+                  </button>
 
-              {showNotificationAdmin && (
-                <div
-                  ref={notificationRefAdmin}
-                  className="absolute top-full right-0 mt-2 w-[480px] bg-white border border-gray-300 rounded p-4 shadow-lg z-50 overflow-auto max-h-96"
-                  style={{ right: "16px" }}
-                >
-                  {solicitudesAdmin.length === 0 ? (
-                    <p className="text-center text-gray-500">No hay solicitudes pendientes</p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {solicitudesAdmin.map((sol) => (
-                        <li key={sol.id} className="border rounded p-2 flex flex-col space-y-2">
+                  {showNotificationAdmin && (
+                    <div
+                      ref={notificationRefAdmin}
+                      className="absolute top-full right-0 mt-2 w-72 md:w-[480px] bg-white border border-gray-300 rounded p-4 shadow-lg z-50 overflow-auto max-h-96"
+                      style={{ right: "0" }}
+                    >
+                      {solicitudesAdmin.length === 0 ? (
+                        <p className="text-center text-gray-500">No hay solicitudes pendientes</p>
+                      ) : (
+                        <ul className="space-y-3">
+                          {solicitudesAdmin.map((sol) => (
+                            <li
+                              key={sol.id}
+                              className="border rounded p-2 flex flex-col space-y-2"
+                            >
+                              <p>
+                                <strong>Solicitud de:</strong> {sol.user_name}
+                              </p>
+                              <pre className="whitespace-pre-wrap max-h-40 overflow-auto bg-gray-50 p-2 rounded text-xs">
+                                {JSON.stringify(sol.datos_formulario, null, 2)}
+                              </pre>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    navigate("/publicar", {
+                                      state: {
+                                        solicitud: sol.datos_formulario,
+                                        reviewMode: true,
+                                        solicitudId: sol.id,
+                                        userId: sol.user_id,
+                                        userName: sol.user_name,
+                                      },
+                                    })
+                                  }
+                                >
+                                  Ver publicación
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() =>
+                                    actualizarEstadoSolicitud(
+                                      sol.id,
+                                      "aceptado",
+                                      sol.datos_formulario,
+                                      sol.user_id
+                                    )
+                                  }
+                                >
+                                  Aceptar y Publicar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => actualizarEstadoSolicitud(sol.id, "rechazado")}
+                                >
+                                  Denegar
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Notificaciones para usuario */}
+              {isUser && (
+                <div className="relative">
+                  <button
+                    title="Estado Solicitud"
+                    onClick={() => {
+                      setShowNotificationUser((prev) => !prev);
+                      setShowNotificationAdmin(false);
+                    }}
+                    className="relative focus:outline-none"
+                    aria-haspopup="true"
+                    aria-expanded={showNotificationUser}
+                  >
+                    <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900" />
+                    {solicitudUser && solicitudUser.estado === "pendiente" && (
+                      <span className="absolute -top-1 -right-1 rounded-full bg-yellow-500 text-white text-xs px-1">
+                        !
+                      </span>
+                    )}
+                    {(solicitudUser &&
+                      (solicitudUser.estado === "aceptado" ||
+                        solicitudUser.estado === "rechazado")) && (
+                      <span className="absolute -top-1 -right-1 rounded-full bg-green-600 text-white text-xs px-1">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotificationUser && (
+                    <div
+                      ref={notificationRefUser}
+                      className="absolute top-full right-0 mt-2 w-72 bg-white border border-gray-300 rounded p-4 shadow-lg z-50"
+                      style={{ right: "0" }}
+                    >
+                      {!solicitudUser ? (
+                        <p>No tienes solicitudes de publicación.</p>
+                      ) : (
+                        <>
                           <p>
-                            <strong>Solicitud de:</strong> {sol.user_name}
+                            Estado de tu solicitud:{" "}
+                            <strong
+                              className={
+                                solicitudUser.estado === "aceptado"
+                                  ? "text-green-600"
+                                  : solicitudUser.estado === "rechazado"
+                                  ? "text-red-600"
+                                  : "text-yellow-600"
+                              }
+                            >
+                              {solicitudUser.estado.charAt(0).toUpperCase() +
+                                solicitudUser.estado.slice(1)}
+                            </strong>
                           </p>
-                          <pre className="whitespace-pre-wrap max-h-40 overflow-auto bg-gray-50 p-2 rounded text-xs">
-                            {JSON.stringify(sol.datos_formulario, null, 2)}
-                          </pre>
-                          <div className="flex space-x-2 mt-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                navigate("/publicar", {
-                                  state: {
-                                    solicitud: sol.datos_formulario,
-                                    reviewMode: true,
-                                    solicitudId: sol.id,
-                                    userId: sol.user_id,
-                                    userName: sol.user_name,
-                                  },
-                                })
-                              }
-                            >
-                              Ver publicación
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() =>
-                                actualizarEstadoSolicitud(sol.id, "aceptado", sol.datos_formulario, sol.user_id)
-                              }
-                            >
-                              Aceptar y Publicar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => actualizarEstadoSolicitud(sol.id, "rechazado")}
-                            >
-                              Denegar
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                          <p className="text-sm text-gray-500">
+                            Enviada el:{" "}
+                            {new Date(solicitudUser.created_at).toLocaleDateString()}
+                          </p>
+                          {solicitudUser.estado === "rechazado" && (
+                            <p className="mt-2 text-red-700 font-semibold">
+                              Tu solicitud fue denegada.
+                            </p>
+                          )}
+                          {solicitudUser.estado === "aceptado" && (
+                            <p className="mt-2 text-green-700 font-semibold">
+                              Tu solicitud fue aprobada y publicada.
+                            </p>
+                          )}
+                          {solicitudUser.estado === "pendiente" && (
+                            <p className="mt-2 text-yellow-700 font-semibold">
+                              Tu solicitud está pendiente de aprobación.
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
             </>
           )}
 
-          {isUser && (
-            <>
-              <button
-                title="Estado Solicitud"
-                onClick={() => setShowNotificationUser((prev) => !prev)}
-                className="relative"
-              >
-                <Bell className="h-6 w-6 text-gray-700 hover:text-gray-900" />
-                {solicitudUser && solicitudUser.estado === "pendiente" && (
-                  <span className="absolute top-0 right-0 rounded-full bg-yellow-500 text-white text-xs px-1.5">!</span>
-                )}
-                {(solicitudUser && (solicitudUser.estado === "aceptado" || solicitudUser.estado === "rechazado")) && (
-                  <span className="absolute top-0 right-0 rounded-full bg-green-600 text-white text-xs px-1.5">✓</span>
-                )}
-              </button>
-
-              {showNotificationUser && (
-                <div
-                  ref={notificationRefUser}
-                  className="absolute top-full right-0 mt-2 w-72 bg-white border border-gray-300 rounded p-4 shadow-lg z-50"
-                  style={{ right: "16px" }}
-                >
-                  {!solicitudUser ? (
-                    <p>No tienes solicitudes de publicación.</p>
-                  ) : (
-                    <>
-                      <p>
-                        Estado de tu solicitud:{" "}
-                        <strong
-                          className={
-                            solicitudUser.estado === "aceptado"
-                              ? "text-green-600"
-                              : solicitudUser.estado === "rechazado"
-                              ? "text-red-600"
-                              : "text-yellow-600"
-                          }
-                        >
-                          {solicitudUser.estado.charAt(0).toUpperCase() + solicitudUser.estado.slice(1)}
-                        </strong>
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Enviada el: {new Date(solicitudUser.created_at).toLocaleDateString()}
-                      </p>
-                      {solicitudUser.estado === "rechazado" && (
-                        <p className="mt-2 text-red-700 font-semibold">Tu solicitud fue denegada.</p>
-                      )}
-                      {solicitudUser.estado === "aceptado" && (
-                        <p className="mt-2 text-green-700 font-semibold">Tu solicitud fue aprobada y publicada.</p>
-                      )}
-                      {solicitudUser.estado === "pendiente" && (
-                        <p className="mt-2 text-yellow-700 font-semibold">Tu solicitud está pendiente de aprobación.</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Mostrar botón "Contactar BITAFAM" a todos menos admin */}
+          {/* Contactar BITAFAM - oculto admin */}
           {userRole !== "admin" && (
-            <a href="https://wa.me/998026135" target="_blank" rel="noopener noreferrer">
-              <Button className="bg-green-600 hover:bg-green-700 flex items-center">
-                <Phone className="h-4 w-4 mr-2" />
-                Contactar BITAFAM
+            <a
+              href="https://wa.me/998026135"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0"
+            >
+              <Button
+                className="bg-green-600 hover:bg-green-700 flex items-center justify-center px-2 sm:px-3 md:px-4 text-xs sm:text-sm md:text-base"
+                aria-label="Contactar BITAFAM"
+              >
+                <Phone className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Contactar BITAFAM</span>
+                <span className="inline sm:hidden">Contactar</span>
               </Button>
             </a>
           )}
 
+          {/* Enlaces de sesión */}
           {!user && (
-            <Link to="/login">
-              <Button className="text-sm font-medium">Iniciar sesión</Button>
-            </Link>
-          )}
-
-          {user && (
-            <Button variant="outline" className="flex items-center space-x-2">
-              <UserRoundMinusIcon className="h-4 w-4" />
-              <span className="hidden md:inline">{profileName || user.email}</span>
-            </Button>
-          )}
-
-          {user && (
-            <Link to="/publicar">
-              <Button variant="outline" className="text-sm font-medium">
-                Publicar
+            <Link to="/login" className="flex-shrink-0">
+              <Button
+                className="text-sm font-medium px-2 sm:px-3 md:px-4 text-xs sm:text-sm md:text-base w-auto"
+                aria-label="Iniciar sesión"
+              >
+                Iniciar sesión
               </Button>
             </Link>
           )}
 
           {user && (
-            <Button variant="destructive" onClick={handleLogout} className="text-sm">
-              Cerrar sesión
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                className="flex items-center space-x-1 md:space-x-2 px-2 sm:px-3 md:px-4 text-xs sm:text-sm md:text-base flex-shrink-0 min-w-0"
+                aria-label="Perfil usuario"
+              >
+                <UserRoundMinusIcon className="h-4 w-4" />
+                <span className="truncate max-w-[7rem] sm:max-w-[10rem] md:max-w-none">
+                  {profileName || user.email}
+                </span>
+              </Button>
+              <Link to="/publicar" className="flex-shrink-0">
+                <Button
+                  variant="outline"
+                  className="text-sm px-2 sm:px-3 md:px-4 w-auto text-xs sm:text-sm md:text-base"
+                  aria-label="Publicar"
+                >
+                  Publicar
+                </Button>
+              </Link>
+              <Button
+                variant="destructive"
+                onClick={handleLogout}
+                className="text-sm px-2 sm:px-3 md:px-4 w-auto text-xs sm:text-sm md:text-base flex-shrink-0"
+                aria-label="Cerrar sesión"
+              >
+                Cerrar sesión
+              </Button>
+            </>
           )}
         </nav>
       </div>

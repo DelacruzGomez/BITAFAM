@@ -1,7 +1,7 @@
 // src/pages/Index.tsx
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,13 +28,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
+import CountUp from "react-countup";
 
 type Terreno = {
   id: number;
   titulo: string;
   precio: number;
-  moneda?: string; // nueva propiedad para moneda
+  moneda?: string;
   area: number;
   ubicacion: string;
   imagen: string;
@@ -43,7 +43,39 @@ type Terreno = {
   tipo: string;
   status: string;
   user_id: string;
+  videos?: string[];
 };
+// Agrega este componente para convertir texto con URLs en texto con enlaces clickeables
+const TextWithLinks = ({ text }: { text: string }) => {
+  const urlRegex = /((https?:\/\/[^\s<>"]+)|(www\.[^\s<>"]+))/gi;
+  const parts = text.split(urlRegex).filter(Boolean);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (urlRegex.test(part)) {
+          let url = part;
+          if (!/^https?:\/\//i.test(url)) {
+            url = "http://" + url;
+          }
+          return (
+            <a
+              key={index}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline break-all ml-1 inline-block"
+            >
+              {part}
+            </a>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
+};
+
 
 const carouselImages = [
   "/quinua2.png",
@@ -54,6 +86,8 @@ const carouselImages = [
 ];
 
 const ITEMS_PER_PAGE = 6;
+
+
 
 const Index = () => {
   const navigate = useNavigate();
@@ -67,10 +101,6 @@ const Index = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Estado solicitud de usuario (para controlar si mostrar botón de publicar)
-  const [solicitudUserEstado, setSolicitudUserEstado] = useState<string | null>(null);
-
-  // Cambiar imagen del carrusel automáticamente cada 5 segundos
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentImageIndex((prevIndex) =>
@@ -80,16 +110,13 @@ const Index = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Cargar terrenos
   useEffect(() => {
     const fetchTerrenos = async () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("land_properties")
         .select("*")
-        //.eq("status", "disponible") // Puedes descomentar para filtrar terrenos disponibles
         .order("created_at", { ascending: false });
-
       if (error) {
         console.error("Error al cargar terrenos:", error.message);
       } else {
@@ -100,34 +127,10 @@ const Index = () => {
     fetchTerrenos();
   }, []);
 
-  // Cargar estado solicitud usuario
-  useEffect(() => {
-    const fetchSolicitudUserEstado = async () => {
-      if (!user) {
-        setSolicitudUserEstado(null);
-        return;
-      }
-      const { data, error } = await supabase
-        .from("publicacion_solicitudes")
-        .select("estado")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data) {
-        setSolicitudUserEstado(data.estado);
-      } else {
-        setSolicitudUserEstado(null);
-      }
-    };
-    fetchSolicitudUserEstado();
-  }, [user]);
-
-  // Filtrado
   const terrenosFiltrados = terrenos.filter((terreno) => {
     const cumpleTipo =
-      filtroTipo === "todos" || terreno.tipo.toLowerCase() === filtroTipo;
+      filtroTipo === "todos" ||
+      terreno.tipo.toLowerCase() === filtroTipo.toLowerCase();
     const cumplePrecio =
       filtroPrecio === "todos" ||
       (filtroPrecio === "bajo" && terreno.precio < 80000) ||
@@ -141,14 +144,12 @@ const Index = () => {
     return cumpleTipo && cumplePrecio && cumpleBusqueda;
   });
 
-  // Paginación
   const totalPages = Math.ceil(terrenosFiltrados.length / ITEMS_PER_PAGE);
   const terrenosPaginados = terrenosFiltrados.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
 
-  // Función para formatear precio según moneda
   const formatPrecio = (precio: number, moneda: string = "PEN") => {
     const currencyCode = moneda === "USD" ? "USD" : "PEN";
     const locale = moneda === "USD" ? "en-US" : "es-PE";
@@ -167,43 +168,54 @@ const Index = () => {
 
       {/* Hero Section con carrusel de fondo */}
       <section
-        className="relative h-96 text-white overflow-hidden bg-cover bg-center transition-all duration-1000"
+        className="relative h-auto md:h-96 text-white overflow-hidden bg-cover bg-center transition-all duration-1000"
         style={{
           backgroundImage: `url('${carouselImages[currentImageIndex]}')`,
         }}
+        aria-label="Sección principal de bienvenida con imagen de fondo en carrusel"
       >
         <div className="absolute inset-0 bg-black opacity-30"></div>
-        <div className="relative container mx-auto px-4 h-full flex items-center">
+        {/* Contenedor principal */}
+        <div className="relative container mx-auto px-4 h-full flex flex-col md:flex-row items-center md:items-start">
           {/* Columna principal de mensaje */}
-          <div className="max-w-2xl z-10">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <div className="max-w-2xl z-10 mt-8 md:mt-0 text-center md:text-left mx-auto md:mx-0">
+            <h2 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
               Encuentra tu Terreno Ideal en Ayacucho
             </h2>
-            <p className="text-lg md:text-xl mb-6">
+            <p className="text-base md:text-xl mb-6">
               Invierte en el futuro. Descubre terrenos con ubicación privilegiada
               en la histórica ciudad de Ayacucho.
             </p>
-            <Link to="/terrenos">
+            {/*<Link to="/terrenos" className="inline-block">*/}
+            <Link to="/gestion" className="inline-block">
               <Button
                 size="lg"
                 className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold"
+                aria-label="Ver catálogo de terrenos"
+                
               >
-                Ver Catálogo
+                Gestionar Mis Terrenos
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
+
+            {/* TARJETA SOBRE NOSOTROS (Móvil: debajo del botón con mt-6) */}
+            <div
+              className="
+                relative w-full max-w-sm bg-white rounded-xl shadow-lg p-6 md:p-8 text-gray-800 z-30 mt-6 mb-4 
+                md:absolute md:bottom-12 md:right-2 md:mt-0 md:w-120
+              "
+            >
+              <h2 className="text-2xl font-bold mb-1 text-green-700">Sobre Nosotros</h2>
+              <p className="text-sm text-justify text-gray-600">
+                BITAFAM es tu socio confiable en la búsqueda del terreno perfecto, nos
+                dedicamos a conectar a nuestros clientes con las mejores oportunidades
+                de inversión, ofreciendo un servicio transparente, profesional y
+                personalizado. Nuestra misión es ayudarte a encontrar el lugar ideal
+                para construir tus sueños.
+              </p>
+            </div>
           </div>
-        </div>
-        {/* TARJETA SOBRE NOSOTROS */}
-        <div className="absolute bottom-12 right-2 md:w-120 w-full max-w-xs bg-white rounded-xl shadow-lg p-6 md:p-8 text-gray-800 z-30">
-          <h2 className="text-2xl font-bold mb-1 text-green-700">Sobre Nosotros</h2>
-          <p className="text-sm text-justify text-gray-600">
-            BITAFAM es tu socio confiable en la búsqueda del terreno perfecto, nos
-            dedicamos a conectar a nuestros clientes con las mejores oportunidades
-            de inversión, ofreciendo un servicio transparente, profesional y
-            personalizado. Nuestra misión es ayudarte a encontrar el lugar ideal
-            para construir tus sueños.
-          </p>
         </div>
       </section>
 
@@ -212,7 +224,7 @@ const Index = () => {
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             {/* Buscador */}
-            <div className="flex items-center space-x-2 flex-1">
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
               <Input
                 placeholder="Buscar por ubicación o nombre..."
                 value={busqueda}
@@ -223,7 +235,8 @@ const Index = () => {
                     setCurrentPage(1);
                   }
                 }}
-                className="flex-1"
+                className="flex-1 min-w-0"
+                aria-label="Buscar por ubicación o nombre"
               />
               <button
                 onClick={() => {
@@ -231,6 +244,7 @@ const Index = () => {
                   setCurrentPage(1);
                 }}
                 className="text-gray-400 hover:text-gray-600"
+                aria-label="Buscar"
               >
                 <Search className="h-5 w-5" />
               </button>
@@ -238,13 +252,14 @@ const Index = () => {
 
             {/* Filtro Tipo */}
             <div className="flex items-center space-x-2">
-              <Filter className="text-gray-400 h-5 w-5" />
+              <Filter className="text-gray-400 h-5 w-5" aria-hidden="true" />
               <Select
                 value={filtroTipo}
                 onValueChange={(val) => {
                   setFiltroTipo(val);
                   setCurrentPage(1);
                 }}
+                aria-label="Filtrar por tipo"
               >
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Tipo" />
@@ -268,6 +283,7 @@ const Index = () => {
                 setFiltroPrecio(val);
                 setCurrentPage(1);
               }}
+              aria-label="Filtrar por precio"
             >
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Precio" />
@@ -284,7 +300,7 @@ const Index = () => {
 
         {/* RESULTADOS */}
         {loading ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12" role="status" aria-live="polite">
             <p className="text-gray-500 text-lg">Cargando terrenos...</p>
           </div>
         ) : (
@@ -292,19 +308,40 @@ const Index = () => {
             <p className="text-gray-600 mb-4">
               Se encontraron {terrenosFiltrados.length} terrenos
             </p>
-            {/* Grid de Terrenos */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {terrenosPaginados.map((terreno) => (
                 <Card
                   key={terreno.id}
-                  className="hover:shadow-lg transition-shadow duration-300"
+                  className="hover:shadow-lg transition-shadow duration-300 flex flex-col"
                 >
                   <div className="relative">
-                    <img
-                      src={terreno.portada || terreno.imagen}
-                      alt={terreno.titulo}
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
+                    {terreno.portada ? (
+                      terreno.portada.endsWith(".mp4") ? (
+                        <video
+                          src={terreno.portada}
+                          controls
+                          className="w-full h-48 object-contain rounded-t-lg"
+                        />
+                      ) : (
+                        <img
+                          src={terreno.portada}
+                          alt={terreno.titulo}
+                          className="w-full h-48 object-cover rounded-t-lg"
+                        />
+                      )
+                    ) : terreno.videos && terreno.videos.length > 0 ? (
+                      <video
+                        src={terreno.videos[0]}
+                        controls
+                        className="w-full h-48 object-contain rounded-t-lg"
+                      />
+                    ) : (
+                      <img
+                        src={terreno.imagen}
+                        alt={terreno.titulo}
+                        className="w-full h-48 object-cover rounded-t-lg"
+                      />
+                    )}
                     <Badge className="absolute top-2 right-2 bg-green-600 text-white capitalize">
                       {terreno.tipo}
                     </Badge>
@@ -315,36 +352,34 @@ const Index = () => {
                     )}
                   </div>
                   <CardHeader>
-                    <CardTitle className="text-lg text-gray-800">
+                    <CardTitle className="text-lg text-gray-800 truncate">
                       {terreno.titulo}
                     </CardTitle>
-                    <CardDescription className="flex items-center text-gray-600">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {terreno.ubicacion}
+                    <CardDescription className="flex items-center text-gray-600 truncate">
+                      <MapPin className="h-4 w-4 mr-1 flex-shrink-0" aria-hidden="true" />
+                      <TextWithLinks text={terreno.ubicacion} />
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 mb-4">{terreno.descripcion}</p>
+                  <CardContent className="flex flex-col flex-grow">
+                    <p className="text-gray-600 mb-4 line-clamp-3">{terreno.descripcion}</p>
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-2xl font-bold text-green-600">
+                      <span className="text-2xl font-bold text-green-600 whitespace-nowrap">
                         {formatPrecio(terreno.precio, terreno.moneda || "PEN")}
                       </span>
-                      <span className="text-gray-500 font-medium">{terreno.area} m²</span>
+                      <span className="text-gray-500 font-medium whitespace-nowrap">{terreno.area} m²</span>
                     </div>
                     <Link to={`/terreno/${terreno.id}`}>
-                      <Button className="w-full bg-green-600 hover:bg-green-700 mb-2">
+                      <Button className="w-full bg-green-600 hover:bg-green-700 mb-2" aria-label={`Ver detalles del terreno ${terreno.titulo}`}>
                         Ver Detalles
                       </Button>
                     </Link>
                     {user && user.id === terreno.user_id && (
-                      <div className="flex flex-col gap-2 mt-2">
+                      <div className="flex flex-col gap-2 mt-auto">
                         <Button
                           variant="outline"
                           onClick={async () => {
                             const nuevoEstado =
-                              terreno.status === "vendido"
-                                ? "disponible"
-                                : "vendido";
+                              terreno.status === "vendido" ? "disponible" : "vendido";
                             const { error } = await supabase
                               .from("land_properties")
                               .update({ status: nuevoEstado })
@@ -359,6 +394,11 @@ const Index = () => {
                               alert("Error al actualizar estado");
                             }
                           }}
+                          aria-label={
+                            terreno.status === "vendido"
+                              ? "Marcar terreno como disponible"
+                              : "Marcar terreno como vendido"
+                          }
                         >
                           {terreno.status === "vendido"
                             ? "Marcar como disponible"
@@ -368,6 +408,7 @@ const Index = () => {
                           onClick={() => {
                             navigate(`/editar/${terreno.id}`, { state: { terreno } });
                           }}
+                          aria-label={`Editar terreno ${terreno.titulo}`}
                         >
                           Editar
                         </Button>
@@ -390,6 +431,7 @@ const Index = () => {
                               alert("Error al eliminar");
                             }
                           }}
+                          aria-label={`Eliminar terreno ${terreno.titulo}`}
                         >
                           Eliminar
                         </Button>
@@ -400,26 +442,33 @@ const Index = () => {
               ))}
             </div>
             {totalPages > 1 && (
-              <div className="flex justify-center items-center space-x-4 mt-8">
+              <nav
+                className="flex justify-center items-center space-x-4 mt-8"
+                aria-label="Paginación de terrenos"
+              >
                 <Button
                   onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
+                  aria-disabled={currentPage === 1}
+                  aria-label="Página anterior"
                 >
                   Anterior
                 </Button>
-                <span>
+                <span aria-live="polite" aria-atomic="true">
                   Página {currentPage} de {totalPages}
                 </span>
                 <Button
                   onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                   disabled={currentPage === totalPages}
+                  aria-disabled={currentPage === totalPages}
+                  aria-label="Página siguiente"
                 >
                   Siguiente
                 </Button>
-              </div>
+              </nav>
             )}
             {terrenosFiltrados.length === 0 && (
-              <div className="text-center py-12">
+              <div className="text-center py-12" role="status" aria-live="polite">
                 <p className="text-gray-500 text-lg">
                   No se encontraron terrenos que coincidan con los filtros seleccionados.
                 </p>
@@ -428,36 +477,121 @@ const Index = () => {
           </>
         )}
       </section>
+
+<section className="bg-gray-100 py-14 w-full">
+  <h3 className="text-3xl font-bold text-green-800 mb-12 text-center w-full">
+    ¿Por qué Elegirnos?
+  </h3>
+
+  <div className="w-full flex flex-col md:flex-row justify-between items-center px-0 md:px-10 lg:px-24">
+    {/* Bloque tarjetas al lado izquierdo: ocupa más del 60% del ancho */}
+    <div className="flex flex-row justify-start gap-8 w-full md:w-[63vw] lg:w-[68vw]">
+      {[
+        {
+          img: "https://img.freepik.com/foto-gratis/parcelas-tierra-paisaje-natural-pin-ubicacion_23-2149937913.jpg",
+          title: "TERRENOS / LOTES",
+          desc: "Amplias parcelas de terreno, ideales para proyectos residenciales, comerciales o agrícolas. Oportunidad para inversionistas que buscan construir y crecer.",
+        },
+        {
+          img: "https://alqzzwzgzvvugtdjlqym.supabase.co/storage/v1/object/public/land-images/terrenos/1755105091458_sala.png",
+          title: "DEPARTAMENTOS",
+          desc: "Modernos departamentos diseñados para ofrecer comodidad y funcionalidad, con acabados de calidad y ubicaciones cercanas a servicios esenciales. Perfectos para vivir o invertir.",
+        },
+        {
+          img: "https://www.argentinaproduct.com/ckfinder/userfiles/files/blog/alq06.jpg",
+          title: "ALQUILERES",
+          desc: "Variedad de opciones de alquiler que se adaptan a diferentes necesidades, desde viviendas hasta locales comerciales, con excelentes condiciones y ubicaciones accesibles.",
+        },
+      ].map(({ img, title, desc }, i) => (
+        <div
+          key={i}
+          className="flex flex-col justify-between bg-white rounded-xl shadow-md cursor-pointer overflow-hidden transition-shadow duration-300 hover:shadow-xl group w-[19vw] min-w-[230px] max-w-[400px]"
+        >
+          <img
+            src={img}
+            alt={title}
+            className="w-full h-44 object-cover object-center block"
+          />
+          <button
+            type="button"
+            onClick={() => navigate("/terrenosccccccccccc")}
+            className="bg-green-900 text-white text-center font-bold text-[1.2rem] px-4 py-5 w-full"
+          >
+            {title}
+          </button>
+          <div className="max-h-0 overflow-hidden bg-green-800 text-green-200 text-sm px-4 pt-0 pb-0 text-center transition-all duration-500 group-hover:max-h-32 group-hover:pt-4 group-hover:pb-5 group-hover:pointer-events-auto pointer-events-none">
+            {desc}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {/* Bloque conteos a la derecha: ocupa el resto del ancho */}
+    <div className="grid grid-cols-1 gap-12 text-center w-full md:w-[30vw] lg:w-[27vw]">
+      <div>
+        <p className="text-cyan-600 font-extrabold text-5xl mb-2">
+          <CountUp start={0} end={15} duration={5} prefix="+ " />
+        </p>
+        <p className="uppercase font-semibold text-green-800 tracking-wide text-xl">
+          Años de Experiencia
+        </p>
+      </div>
+      <div>
+        <p className="text-cyan-600 font-extrabold text-5xl mb-2">
+          <CountUp start={0} end={1400} duration={5} separator="," prefix="+ " />
+        </p>
+        <p className="uppercase font-semibold text-green-800 tracking-wide text-xl">
+          Personas beneficiados
+        </p>
+      </div>
+      <div>
+        <p className="text-cyan-600 font-extrabold text-5xl mb-2">
+          <CountUp start={0} end={50} duration={5} separator="," prefix="+ " />
+        </p>
+        <p className="uppercase font-semibold text-green-800 tracking-wide text-xl">
+          Inversionistas capacitados
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+
+     
+
       {/* Sección Sobre Ayacucho */}
       <section className="bg-white py-16">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold text-gray-800 mb-4">
-              ¿Por qué invertir en BITAFAM?
-            </h3>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Ayacucho es una ciudad en crecimiento con gran potencial de desarrollo,
-              rica historia y ubicación estratégica.
-            </p>
-          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="text-green-600 h-8 w-8" />
+                <MapPin
+                  className="text-green-600 h-8 w-8"
+                  aria-hidden="true"
+                />
               </div>
               <h4 className="text-xl font-semibold mb-2">Ubicación Estratégica</h4>
               <p className="text-gray-600">Centro geográfico del Perú.</p>
             </div>
             <div className="text-center">
               <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ArrowRight className="text-amber-600 h-8 w-8" />
+                <ArrowRight
+                  className="text-amber-600 h-8 w-8"
+                  aria-hidden="true"
+                />
               </div>
               <h4 className="text-xl font-semibold mb-2">Crecimiento Económico</h4>
               <p className="text-gray-600">Nuevas oportunidades de inversión.</p>
             </div>
             <div className="text-center">
               <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <HistoryIcon className="text-blue-600 h-8 w-8" />
+                <HistoryIcon
+                  className="text-blue-600 h-8 w-8"
+                  aria-hidden="true"
+                />
               </div>
               <h4 className="text-xl font-semibold mb-2">Historia y Cultura</h4>
               <p className="text-gray-600">Patrimonio que impulsa el turismo.</p>
@@ -465,6 +599,7 @@ const Index = () => {
           </div>
         </div>
       </section>
+
       {/* FOOTER */}
       <footer className="bg-gray-800 text-white py-12">
         <div className="container mx-auto px-4">
@@ -485,7 +620,7 @@ const Index = () => {
               <h4 className="text-lg font-semibold mb-4">Contacto</h4>
               <div className="space-y-2 text-gray-400">
                 <p>📞 998 026 135</p>
-                <p>✉️ yoelroc@gmail.com</p>
+                <p>✉️ grupobitafam@gmail.com</p>
                 <p>📍 Alfonso Ugarte 101, Ayacucho</p>
               </div>
             </div>

@@ -1,4 +1,3 @@
-// src/pages/TerrenoDetalle.tsx
 import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,20 +10,71 @@ import {
   MessageSquare,
   Share2,
   Heart,
+  X,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import ContactForm from "@/components/ContactForm";
 import { supabase } from "@/lib/supabaseClient";
 import { useSession } from "@supabase/auth-helpers-react";
 
+// Componente para convertir texto con URLs en enlaces clickeables sin duplicar texto
+const TextWithLinks = ({ text }: { text: string }) => {
+  const urlRegex = /((https?:\/\/|www\.)[^\s\]]+)/gi;
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({
+        text: text.substring(lastIndex, match.index),
+        isLink: false,
+      });
+    }
+    segments.push({
+      text: match[0],
+      isLink: true,
+    });
+    lastIndex = urlRegex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    segments.push({
+      text: text.substring(lastIndex),
+      isLink: false,
+    });
+  }
+
+  return (
+    <>
+      {segments.map(({ text: segmentText, isLink }, index) =>
+        isLink ? (
+          <a
+            key={index}
+            href={segmentText.startsWith("http") ? segmentText : "http://" + segmentText}
+            className="text-blue-600 underline break-all ml-1 inline-block"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {segmentText}
+          </a>
+        ) : (
+          <span key={index}>{segmentText}</span>
+        )
+      )}
+    </>
+  );
+};
+
 const TerrenoDetalle = () => {
   const { id } = useParams<{ id: string }>();
   const session = useSession();
   const currentUser = session?.user;
   const [terreno, setTerreno] = useState<any>(null);
-  const [imagenActual, setImagenActual] = useState(0);
+  const [actualMediaIndex, setActualMediaIndex] = useState(0);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [guardado, setGuardado] = useState(false);
+
+  const [modalMediaUrl, setModalMediaUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTerreno = async () => {
@@ -42,10 +92,8 @@ const TerrenoDetalle = () => {
     fetchTerreno();
   }, [id]);
 
-  // Opcional: cargar estado guardado (favorito) desde BD si tienes esa funcionalidad
-  // Aquí solo estado local simulado
   useEffect(() => {
-    setGuardado(false); // default sin guardar. En producción consulta a BD
+    setGuardado(false);
   }, [id]);
 
   if (!terreno) {
@@ -61,17 +109,14 @@ const TerrenoDetalle = () => {
     );
   }
 
-  const imagenes: string[] = terreno.imagenes || [terreno.imagen];
-  const detalles = {
-    dimensiones: terreno.dimensiones || "No especificado",
-    topografia: terreno.topografia || "No especificado",
-    acceso: terreno.acceso || "No especificado",
-    zonificacion: terreno.zonificacion || "No especificado",
-    servicios: terreno.servicios ? terreno.servicios.split(",") : [],
-    documentos: terreno.documentacion || "No especificado",
-  };
+  const serviciosArray = Array.isArray(terreno.servicios)
+    ? terreno.servicios
+    : terreno.servicios?.split(",") || [];
 
-  // Formatear precio según moneda del terreno
+  const galeriaMedia = [...(terreno.imagenes || []), ...(terreno.videos || [])].filter(Boolean);
+
+  const isVideo = (url: string) => url.toLowerCase().endsWith(".mp4");
+
   const formatPrecio = (precio: number, moneda: string) => {
     const currencyCode = moneda === "USD" ? "USD" : "PEN";
     const locale = moneda === "USD" ? "en-US" : "es-PE";
@@ -83,68 +128,46 @@ const TerrenoDetalle = () => {
     }).format(precio);
   };
 
-  const enviarEmail = () => {
-    if (!terreno) return "#";
-    const email = "yoelroc@gmail.com";
-    const asunto = encodeURIComponent(`Consulta sobre terreno: ${terreno.titulo}`);
-    const cuerpo = encodeURIComponent(
-      `Hola,\n\nEstoy interesado en obtener más información sobre el terreno "${terreno.titulo}". Por favor, contáctenme.\n\nGracias.`
-    );
-    return `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${asunto}&body=${cuerpo}`;
+  const detalles = {
+    dimensiones: terreno.dimensiones || "No especificado",
+    topografia: terreno.topografia || "No especificado",
+    acceso: terreno.acceso || "No especificado",
+    zonificacion: terreno.zonificacion || "No especificado",
+    servicios: serviciosArray,
+    documentos: terreno.documentacion || "No especificado",
   };
 
-  const contactarWhatsApp = () => {
-    if (!terreno) return "https://wa.me/998026135";
-    const phone = "998026135";
-    const mensaje = encodeURIComponent(
-      `Hola, estoy interesado en el terreno "${terreno.titulo}". Por favor, contáctenme.`
-    );
-    return `https://wa.me/${phone}?text=${mensaje}`;
+  const handleMediaClick = (index: number) => {
+    setActualMediaIndex(index);
+    setModalMediaUrl(galeriaMedia[index]);
   };
 
-  // Función para compartir usando Web Share API o copiar URL
-  const handleShare = async () => {
-    if (!terreno) return;
+  const toggleGuardar = () => setGuardado((prev) => !prev);
 
-    const shareData = {
-      title: terreno.titulo,
-      url: window.location.href,
-    };
+  const gmailLink = `https://mail.google.com/mail/?view=cm&fs=1&to=grupobitafam@gmail.com&su=${encodeURIComponent(
+    `Consulta sobre terreno: ${terreno.titulo}`
+  )}&body=${encodeURIComponent(
+    `Hola,\n\nEstoy interesado en obtener más información sobre el terreno "${terreno.titulo}". Por favor, contáctenme.\n\nGracias.`
+  )}`;
 
-    try {
-      if (navigator.canShare && navigator.canShare(shareData)) {
-        await navigator.share(shareData);
-        console.log("Compartido correctamente");
-      } else {
-        // Fallback: copiar url al portapapeles
-        await navigator.clipboard.writeText(shareData.url);
-        alert("Enlace copiado al portapapeles");
-      }
-    } catch (error) {
-      console.error("Error en compartir:", error);
-      alert("No se pudo compartir el contenido.");
-    }
-  };
-
-  // Función para alternar estado guardado
-  const toggleGuardar = () => {
-    // Aquí iría lógica real de guardar/desguardar en BD, mientras simulamos.
-    setGuardado((prev) => !prev);
-  };
+  const closeModal = () => setModalMediaUrl(null);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link
-            to="/"
-            className="flex items-center space-x-2 text-green-600 hover:text-green-700"
-          >
+          <Link to="/" className="flex items-center space-x-2 text-green-600 hover:text-green-700">
             <ArrowLeft className="h-5 w-5" />
             <span>Volver al catálogo</span>
           </Link>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={handleShare}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigator.clipboard.writeText(window.location.href).then(() => alert("Link copiado"))
+              }
+            >
               <Share2 className="h-4 w-4 mr-2" />
               Compartir
             </Button>
@@ -162,21 +185,26 @@ const TerrenoDetalle = () => {
       </header>
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Columna Principal */}
           <div className="lg:col-span-2">
-            {/* Galería de Imágenes */}
             <Card className="mb-6">
               <CardContent className="p-0">
                 <div className="relative">
-                  <img
-                    src={imagenes[imagenActual]}
-                    alt={terreno.titulo}
-                    className="w-full h-96 object-cover rounded-t-lg"
-                  />
-                  <Badge
-                    className="absolute top-4 right-4 bg-green-600 text-white"
-                    variant="secondary"
-                  >
+                  {isVideo(galeriaMedia[actualMediaIndex]) ? (
+                    <video
+                      src={galeriaMedia[actualMediaIndex]}
+                      controls
+                      autoPlay
+                      className="w-full h-96 object-contain rounded-t-lg"
+                    />
+                  ) : (
+                    <img
+                      src={galeriaMedia[actualMediaIndex]}
+                      alt={terreno.titulo}
+                      className="w-full h-96 object-cover rounded-t-lg cursor-pointer"
+                      onClick={() => setModalMediaUrl(galeriaMedia[actualMediaIndex])}
+                    />
+                  )}
+                  <Badge className="absolute top-4 right-4 bg-green-600 text-white" variant="secondary">
                     {terreno.tipo}
                   </Badge>
                   {terreno.status === "vendido" && (
@@ -187,34 +215,45 @@ const TerrenoDetalle = () => {
                 </div>
                 <div className="p-4">
                   <div className="flex space-x-2 overflow-x-auto">
-                    {imagenes.map((img: string, index: number) => (
-                      <img
-                        key={index}
-                        src={img}
-                        alt={`Vista ${index + 1}`}
-                        className={`w-20 h-20 object-cover rounded cursor-pointer border-2 ${
-                          imagenActual === index
-                            ? "border-green-600"
-                            : "border-gray-200"
-                        }`}
-                        onClick={() => setImagenActual(index)}
-                      />
-                    ))}
+                    {galeriaMedia.map((item: string, idx: number) =>
+                      isVideo(item) ? (
+                        <video
+                          key={idx}
+                          src={item}
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                          onClick={() => handleMediaClick(idx)}
+                          className={`w-20 h-20 object-cover rounded cursor-pointer border-2 ${
+                            actualMediaIndex === idx ? "border-green-600" : "border-gray-200"
+                          }`}
+                        />
+                      ) : (
+                        <img
+                          key={idx}
+                          src={item}
+                          alt={`Vista ${idx + 1}`}
+                          onClick={() => handleMediaClick(idx)}
+                          className={`w-20 h-20 object-cover rounded cursor-pointer border-2 ${
+                            actualMediaIndex === idx ? "border-green-600" : "border-gray-200"
+                          }`}
+                        />
+                      )
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
-            {/* Información Principal */}
+
             <Card className="mb-6">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-2xl text-gray-800">
-                      {terreno.titulo}
-                    </CardTitle>
+                    <CardTitle className="text-2xl text-gray-800">{terreno.titulo}</CardTitle>
                     <div className="flex items-center text-gray-600 mt-1">
                       <MapPin className="h-5 w-5 mr-2" />
-                      {terreno.ubicacion}
+                      <TextWithLinks text={terreno.ubicacion} />
                     </div>
                   </div>
                   {currentUser?.id === terreno.user_id && (
@@ -244,7 +283,7 @@ const TerrenoDetalle = () => {
                 <p className="text-gray-700 text-lg">{terreno.descripcion}</p>
               </CardContent>
             </Card>
-            {/* Detalles Técnicos */}
+
             <Card>
               <CardHeader>
                 <CardTitle>Detalles del Terreno</CardTitle>
@@ -270,11 +309,15 @@ const TerrenoDetalle = () => {
                   <div>
                     <h4 className="font-semibold mb-2">Servicios Disponibles</h4>
                     <div className="flex flex-wrap gap-2">
-                      {detalles.servicios.map((servicio: string, index: number) => (
-                        <Badge key={index} variant="outline">
-                          {servicio}
-                        </Badge>
-                      ))}
+                      {detalles.servicios.length > 0 ? (
+                        detalles.servicios.map((servicio: string, index: number) => (
+                          <Badge key={index} variant="outline">
+                            {servicio}
+                          </Badge>
+                        ))
+                      ) : (
+                        <p>No especificado</p>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -295,7 +338,7 @@ const TerrenoDetalle = () => {
               </CardContent>
             </Card>
           </div>
-          {/* Sidebar de Contacto */}
+
           <div className="lg:col-span-1">
             <Card className="sticky top-4">
               <CardHeader>
@@ -306,31 +349,25 @@ const TerrenoDetalle = () => {
                   className="w-full bg-blue-600 hover:bg-yellow-700"
                   onClick={() => setMostrarFormulario(!mostrarFormulario)}
                 >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Solicitar Información
+                  <MessageSquare className="h-4 w-4 mr-2" /> Solicitar Información
                 </Button>
 
-                <a
-                  href={enviarEmail()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
+                <a href={gmailLink} target="_blank" rel="noopener noreferrer" className="block">
                   <Button className="w-full bg-red-600 hover:bg-yellow-700 flex items-center justify-center mt-2">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Enviar Email
+                    <Mail className="h-4 w-4 mr-2" /> Enviar Email
                   </Button>
                 </a>
 
                 <a
-                  href={contactarWhatsApp()}
+                  href={`https://wa.me/998026135?text=${encodeURIComponent(
+                    `Hola, estoy interesado en el terreno "${terreno.titulo}". Por favor, contáctenme.`
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block"
                 >
                   <Button className="w-full bg-green-600 hover:bg-yellow-700 flex items-center justify-center mt-2">
-                    <Phone className="h-4 w-4 mr-2" />
-                    WhatsApp BITAFAM
+                    <Phone className="h-4 w-4 mr-2" /> WhatsApp BITAFAM
                   </Button>
                 </a>
 
@@ -344,7 +381,7 @@ const TerrenoDetalle = () => {
                   <h4 className="font-semibold mb-2">Información de Contacto</h4>
                   <div className="space-y-2 text-sm text-gray-600">
                     <p>📞 998 026 135</p>
-                    <p>✉️ yoelroc@gmail.com</p>
+                    <p>✉️ grupobitafam@gmail.com</p>
                     <p>📍 Alfonso Ugarte 101, Ayacucho</p>
                   </div>
                 </div>
@@ -361,8 +398,45 @@ const TerrenoDetalle = () => {
           </div>
         </div>
       </div>
+
+      {modalMediaUrl && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={closeModal}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            className="absolute top-4 right-4 text-white p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeModal();
+            }}
+            aria-label="Cerrar modal"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {isVideo(modalMediaUrl) ? (
+            <video
+              src={modalMediaUrl}
+              controls
+              autoPlay
+              className="max-h-full max-w-full rounded"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={modalMediaUrl}
+              alt="Imagen en tamaño completo"
+              className="max-h-full max-w-full rounded"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 export default TerrenoDetalle;
+

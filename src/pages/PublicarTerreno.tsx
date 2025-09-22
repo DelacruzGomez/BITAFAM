@@ -4,17 +4,32 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 
+type Solicitud = {
+  titulo: string;
+  descripcion: string;
+  precio: number;
+  moneda: string;
+  ubicacion: string;
+  imagenes: string[];
+  videos?: string[];
+  area: number;
+  tipo: string;
+  dimensiones: string;
+  topografia: string;
+  acceso: string;
+  zonificacion: string;
+  servicios: string;
+  documentacion: string;
+};
+
 export default function PublicarTerreno() {
   const navigate = useNavigate();
   const location = useLocation();
+  const solicitud: Solicitud | null = location.state?.solicitud || null;
+  const reviewMode: boolean = location.state?.reviewMode || false;
+  const solicitudId: string | null = location.state?.solicitudId || null;
+  const userId: string | null = location.state?.userId || null;
 
-  // Datos de la solicitud y control de modo revisión y IDs para aprobación
-  const solicitud = location.state?.solicitud || null;
-  const reviewMode = location.state?.reviewMode || false;
-  const solicitudId = location.state?.solicitudId || null;
-  const userId = location.state?.userId || null;
-
-  // Formularios states, precargados con datos de la solicitud (si existe)
   const [titulo, setTitulo] = useState(solicitud?.titulo || "");
   const [descripcion, setDescripcion] = useState(solicitud?.descripcion || "");
   const [precio, setPrecio] = useState(solicitud?.precio?.toString() || "");
@@ -23,6 +38,7 @@ export default function PublicarTerreno() {
   const [area, setArea] = useState(solicitud?.area?.toString() || "");
   const [tipo, setTipo] = useState(solicitud?.tipo || "urbano");
   const [imagenes, setImagenes] = useState<string[]>(solicitud?.imagenes || []);
+  const [videos, setVideos] = useState<string[]>(solicitud?.videos || []);
   const [portadaIndex, setPortadaIndex] = useState(0);
   const [dimensiones, setDimensiones] = useState(solicitud?.dimensiones || "");
   const [topografia, setTopografia] = useState(solicitud?.topografia || "");
@@ -97,20 +113,37 @@ export default function PublicarTerreno() {
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files) return;
+
     for (const file of Array.from(files)) {
-      const fileName = `terrenos/${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("land-images")
-        .upload(fileName, file);
-      if (uploadError) {
-        alert("Error al subir una imagen");
-        return;
+      let bucket = "";
+      let fileName = "";
+      if (file.type.startsWith("image/")) {
+        bucket = "land-images";
+        fileName = `terrenos/images/${Date.now()}_${file.name}`;
+      } else if (file.type === "video/mp4") {
+        bucket = "land-videos";
+        fileName = `terrenos/videos/${Date.now()}_${file.name}`;
+      } else {
+        alert(`Formato no soportado: ${file.type}. Solo imágenes y video mp4.`);
+        continue;
       }
-      const { data: urlData } = supabase.storage
-        .from("land-images")
-        .getPublicUrl(fileName);
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, file);
+
+      if (uploadError) {
+        alert("Error al subir el archivo: " + file.name);
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
       if (urlData?.publicUrl) {
-        setImagenes((prev) => [...prev, urlData.publicUrl]);
+        if (bucket === "land-images") {
+          setImagenes((prev) => [...prev, urlData.publicUrl]);
+        } else if (bucket === "land-videos") {
+          setVideos((prev) => [...prev, urlData.publicUrl]);
+        }
       }
     }
   };
@@ -123,6 +156,12 @@ export default function PublicarTerreno() {
     }
   };
 
+  // Regex para extraer links dentro del texto completo (detecta urls http/https)
+  const extraerLinks = (texto: string) => {
+    const urlRegex = /https?:\/\/[^\s\]]+/g;
+    return texto.match(urlRegex) || [];
+  };
+
   const handleSolicitarPublicacion = async () => {
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData?.user) {
@@ -130,7 +169,6 @@ export default function PublicarTerreno() {
       return;
     }
     const user = authData.user;
-
     const { data: userData, error: userDataError } = await supabase
       .from("users")
       .select("name")
@@ -140,7 +178,6 @@ export default function PublicarTerreno() {
       alert("Su cuenta no está registrada correctamente.");
       return;
     }
-
     const formularioDatos = {
       titulo,
       descripcion,
@@ -148,6 +185,7 @@ export default function PublicarTerreno() {
       moneda,
       ubicacion,
       imagenes,
+      videos,
       area: Number(area),
       tipo,
       dimensiones,
@@ -157,7 +195,6 @@ export default function PublicarTerreno() {
       servicios,
       documentacion,
     };
-
     const insertSolicitudPayload = {
       user_id: user.id,
       user_name: userData.name,
@@ -166,16 +203,13 @@ export default function PublicarTerreno() {
       created_at: new Date().toISOString(),
     };
     console.log("[PublicarTerreno] formData -> publicacion_solicitudes.insert", insertSolicitudPayload);
-
     const { error: solicitudError } = await supabase
       .from("publicacion_solicitudes")
       .insert(insertSolicitudPayload);
-
     if (solicitudError) {
       alert("Error al enviar solicitud: " + solicitudError.message);
       return;
     }
-
     alert("Solicitud enviada. Espera la aprobación del administrador.");
     setSolicitudUserEstado("pendiente");
     setSolicitudUserCreatedAt(insertSolicitudPayload.created_at);
@@ -185,26 +219,25 @@ export default function PublicarTerreno() {
     e.preventDefault();
     if (reviewMode) return;
 
-    // Permitir que el usuario haga nueva solicitud aún si ya fue aprobado antes
     if (!isAdmin && solicitudUserEstado !== "aceptado") {
       return handleSolicitarPublicacion();
     }
 
     setLoading(true);
-
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData?.user) {
       alert("Debes iniciar sesión para publicar un terreno.");
       setLoading(false);
       return;
     }
-    const user = authData.user;
 
+    const user = authData.user;
     const { data: userExists, error: userError } = await supabase
       .from("users")
       .select("id")
       .eq("id", user.id)
       .single();
+
     if (userError || !userExists) {
       alert("Tu cuenta no está registrada en la base de datos de usuarios.");
       setLoading(false);
@@ -222,6 +255,7 @@ export default function PublicarTerreno() {
       ubicacion,
       imagen: portada,
       imagenes,
+      videos,
       area: parseFloat(area),
       tipo,
       status: "publicado",
@@ -232,6 +266,7 @@ export default function PublicarTerreno() {
       servicios,
       documentacion,
     };
+
     console.log("[PublicarTerreno] formData -> land_properties.insert (handleSubmit)", insertLandPayload);
 
     const { error: insertError } = await supabase
@@ -250,7 +285,6 @@ export default function PublicarTerreno() {
         .update({ estado: "usado" })
         .eq("user_id", user.id)
         .eq("estado", "aceptado");
-
       setSolicitudUserEstado("usado");
     }
 
@@ -265,7 +299,6 @@ export default function PublicarTerreno() {
       return;
     }
     setLoading(true);
-
     const {
       titulo,
       descripcion,
@@ -273,6 +306,7 @@ export default function PublicarTerreno() {
       moneda,
       ubicacion,
       imagenes,
+      videos,
       area,
       tipo,
       dimensiones,
@@ -282,9 +316,7 @@ export default function PublicarTerreno() {
       servicios,
       documentacion,
     } = solicitud;
-
     const portada = imagenes && imagenes.length > 0 ? imagenes[0] : null;
-
     const insertLandFromSolicitudPayload = {
       user_id: userId,
       titulo,
@@ -294,6 +326,7 @@ export default function PublicarTerreno() {
       ubicacion,
       imagen: portada,
       imagenes,
+      videos,
       area,
       tipo,
       status: "publicado",
@@ -308,35 +341,29 @@ export default function PublicarTerreno() {
       "[PublicarTerreno] formData -> land_properties.insert (handleAceptarYPublicar)",
       insertLandFromSolicitudPayload
     );
-
     const { error: publicarError } = await supabase
       .from("land_properties")
       .insert(insertLandFromSolicitudPayload);
-
     if (publicarError) {
       alert("Error al publicar terreno: " + publicarError.message);
       setLoading(false);
       return;
     }
-
     const updateAceptarPayload = { estado: "aceptado" };
     const updateAceptarWhere = { id: solicitudId };
     console.log("[PublicarTerreno] update -> publicacion_solicitudes.update (aceptar)", {
       set: updateAceptarPayload,
       where: updateAceptarWhere,
     });
-
     const { error: errorUpdate } = await supabase
       .from("publicacion_solicitudes")
       .update(updateAceptarPayload)
       .eq("id", solicitudId);
-
     if (errorUpdate) {
       alert("Error al actualizar estado de solicitud: " + errorUpdate.message);
       setLoading(false);
       return;
     }
-
     alert("Solicitud aprobada y terreno publicado exitosamente.");
     setLoading(false);
     navigate("/");
@@ -348,19 +375,16 @@ export default function PublicarTerreno() {
       return;
     }
     setLoading(true);
-
     const updateRechazarPayload = { estado: "rechazado" };
     const updateRechazarWhere = { id: solicitudId };
     console.log("[PublicarTerreno] update -> publicacion_solicitudes.update (rechazar)", {
       set: updateRechazarPayload,
       where: updateRechazarWhere,
     });
-
     const { error } = await supabase
       .from("publicacion_solicitudes")
       .update(updateRechazarPayload)
       .eq("id", solicitudId);
-
     if (error) {
       alert("Error al denegar solicitud: " + error.message);
       setLoading(false);
@@ -380,13 +404,11 @@ export default function PublicarTerreno() {
           ? "Publicar Terreno"
           : "Publicar Terreno (Usuario)"}
       </h2>
-
       {reviewMode && isAdmin && (
         <p className="mb-4 text-indigo-700 font-semibold">
           Revisando solicitud enviada por el usuario. Puedes aprobar y publicar o denegar.
         </p>
       )}
-
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="text"
@@ -436,13 +458,26 @@ export default function PublicarTerreno() {
         />
         <input
           type="text"
-          placeholder="Ubicación"
+          placeholder="Ubicación + link (ej: LA PAZ  https://maps..)"
           value={ubicacion}
           onChange={(e) => setUbicacion(e.target.value)}
           className="w-full p-2 border rounded"
           required
           disabled={disableInputs}
         />
+        <div className="mt-1 flex flex-col space-y-1">
+          {extraerLinks(ubicacion).map((link, index) => (
+            <a
+              key={index}
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline"
+            >
+              {link}
+            </a>
+          ))}
+        </div>
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value)}
@@ -506,7 +541,7 @@ export default function PublicarTerreno() {
         />
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,video/mp4"
           multiple
           onChange={(e) => handleFileUpload(e.target.files)}
           className="block"
@@ -533,11 +568,11 @@ export default function PublicarTerreno() {
             Agregar
           </button>
         </div>
-        {imagenes.length > 0 && (
+        {(imagenes.length > 0 || videos.length > 0) && (
           <div className="grid grid-cols-3 gap-2">
             {imagenes.map((img, idx) => (
               <div
-                key={idx}
+                key={`img-${idx}`}
                 className={`border-4 ${portadaIndex === idx ? "border-green-500" : "border-transparent"}`}
               >
                 <img
@@ -550,9 +585,17 @@ export default function PublicarTerreno() {
                 />
               </div>
             ))}
+            {videos.map((videoUrl, idx) => (
+              <div key={`vid-${idx}`} className="border-4 border-transparent">
+                <video
+                  src={videoUrl}
+                  className="w-full h-24 object-cover"
+                  controls
+                />
+              </div>
+            ))}
           </div>
         )}
-
         {!reviewMode && solicitudUserEstado === "aceptado" && (
           <>
             <p className="text-green-600 font-semibold text-center mb-2">
@@ -566,13 +609,10 @@ export default function PublicarTerreno() {
             <p className="text-green-700 font-semibold text-center mb-4">
               Tu solicitud fue aprobada y publicada.
             </p>
-            {/* Mostrar botón para que pueda solicitar nueva publicación */}
             <Button
               type="button"
               onClick={() => {
-                // Al pulsar limpia el estado para enviar una nueva solicitud
                 setSolicitudUserEstado(null);
-                // Limpia formulario para nueva publicación
                 setTitulo("");
                 setDescripcion("");
                 setPrecio("");
@@ -581,6 +621,7 @@ export default function PublicarTerreno() {
                 setArea("");
                 setTipo("urbano");
                 setImagenes([]);
+                setVideos([]);
                 setDimensiones("");
                 setTopografia("");
                 setAcceso("");
@@ -595,7 +636,6 @@ export default function PublicarTerreno() {
             </Button>
           </>
         )}
-
         {!reviewMode && solicitudUserEstado !== "aceptado" && (
           <Button type="submit" disabled={loading} className="w-full">
             {loading
@@ -607,7 +647,6 @@ export default function PublicarTerreno() {
               : "Solicitar publicación"}
           </Button>
         )}
-
         {reviewMode && isAdmin && (
           <div className="flex space-x-4">
             <Button
@@ -626,7 +665,6 @@ export default function PublicarTerreno() {
             </Button>
           </div>
         )}
-
         <Button
           type="button"
           onClick={() => navigate(-1)}

@@ -1,5 +1,4 @@
-// src/pages/EditarTerreno.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -8,27 +7,22 @@ export default function EditarTerreno() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Si el terreno viene desde Index.tsx por state
   const terrenoInicial = location.state?.terreno || null;
 
   const [loading, setLoading] = useState(!terrenoInicial);
-
   const [titulo, setTitulo] = useState(terrenoInicial?.titulo || "");
   const [descripcion, setDescripcion] = useState(terrenoInicial?.descripcion || "");
-
-  // Precio y moneda
   const [precio, setPrecio] = useState(terrenoInicial?.precio?.toString() || "");
-  const [moneda, setMoneda] = useState(terrenoInicial?.moneda || "PEN"); // PEN o USD
-
+  const [moneda, setMoneda] = useState(terrenoInicial?.moneda || "PEN");
   const [ubicacion, setUbicacion] = useState(terrenoInicial?.ubicacion || "");
   const [area, setArea] = useState(terrenoInicial?.area?.toString() || "");
   const [tipo, setTipo] = useState(terrenoInicial?.tipo || "urbano");
   const [status, setStatus] = useState(terrenoInicial?.status || "disponible");
-
   const [imagenes, setImagenes] = useState<File[]>([]);
   const [imagenURLs, setImagenURLs] = useState<string[]>(terrenoInicial?.imagenes || []);
   const [portada, setPortada] = useState<string>(terrenoInicial?.portada || "");
-
+  const [videos, setVideos] = useState<File[]>([]);
+  const [videoURLs, setVideoURLs] = useState<string[]>(terrenoInicial?.videos || []);
   const [dimensiones, setDimensiones] = useState(terrenoInicial?.dimensiones || "");
   const [topografia, setTopografia] = useState(terrenoInicial?.topografia || "");
   const [acceso, setAcceso] = useState(terrenoInicial?.acceso || "");
@@ -36,22 +30,13 @@ export default function EditarTerreno() {
   const [servicios, setServicios] = useState(terrenoInicial?.servicios || "");
   const [documentacion, setDocumentacion] = useState(terrenoInicial?.documentacion || "");
 
-  // Función para formatear precio (solo para mostrar)
-  const formatPrecioDisplay = (value: string, monedaCode: string) => {
-    const numberValue = Number(value.replace(/[^0-9.]/g, ""));
-    if (isNaN(numberValue) || value === "") return "";
-    return new Intl.NumberFormat("es-PE", {
-      style: "currency",
-      currency: monedaCode,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(numberValue);
-  };
+  const [uploadProgressImages, setUploadProgressImages] = useState<number>(0);
+  const [uploadProgressVideos, setUploadProgressVideos] = useState<number>(0);
 
-  // Controla el cambio del precio permitiendo escribir números y punto decimal
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let rawValue = e.target.value;
-    // Permitir solo números y punto decimal
     rawValue = rawValue.replace(/[^0-9.]/g, "");
     setPrecio(rawValue);
   };
@@ -60,9 +45,12 @@ export default function EditarTerreno() {
     if (terrenoInicial) {
       setMoneda(terrenoInicial.moneda || "PEN");
       setPrecio(terrenoInicial.precio?.toString() || "");
+      setVideos([]);
+      setVideoURLs(terrenoInicial.videos || []);
       setLoading(false);
       return;
     }
+
     const fetchData = async () => {
       const { data, error } = await supabase
         .from("land_properties")
@@ -92,7 +80,8 @@ export default function EditarTerreno() {
       setZonificacion(data.zonificacion || "");
       setServicios(data.servicios || "");
       setDocumentacion(data.documentacion || "");
-
+      setVideos([]);
+      setVideoURLs(data.videos || []);
       setLoading(false);
     };
 
@@ -109,42 +98,107 @@ export default function EditarTerreno() {
     }
   };
 
-  const handleMonedaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const nuevaMoneda = e.target.value;
-    setMoneda(nuevaMoneda);
-    // El precio permanece, solo cambia formato al mostrar
+  const handleRemoveVideo = (url: string) => {
+    if (confirm("¿Seguro que quieres eliminar este video?")) {
+      const updated = videoURLs.filter((vid) => vid !== url);
+      setVideoURLs(updated);
+      if (portada === url) {
+        // Si la portada es ese video, cambiarla a alguna imagen o video disponible
+        let newPortada = imagenURLs.length > 0 ? imagenURLs[0] : "";
+        if (!newPortada && videoURLs.length > 0) newPortada = videoURLs[0];
+        setPortada(newPortada);
+      }
+    }
   };
+
+  const handleMonedaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setMoneda(e.target.value);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+
+    const files = Array.from(e.target.files);
+    const newImages: File[] = [];
+    const newVideos: File[] = [];
+
+    files.forEach((file) => {
+      if (file.type.startsWith("image/")) {
+        newImages.push(file);
+      } else if (file.type === "video/mp4") {
+        newVideos.push(file);
+      } else {
+        alert(`Archivo no soportado: ${file.name}. Sólo imágenes y videos MP4.`);
+      }
+    });
+
+    setImagenes((prev) => [...prev, ...newImages]);
+    setVideos((prev) => [...prev, ...newVideos]);
+
+    e.target.value = "";
+  };
+
+  async function uploadFileWithProgress(
+    bucket: string,
+    file: File,
+    onProgress: (progress: number) => void
+  ): Promise<string | null> {
+    return new Promise(async (resolve) => {
+      const timestamp = Date.now();
+      const cleanName = file.name.toLowerCase().replace(/[^a-z0-9.-]/g, "_");
+      const fileName = `terrenos/${timestamp}_${cleanName}`;
+
+      const upload = supabase.storage.from(bucket).upload(fileName, file, {
+        upsert: true,
+      });
+
+      const { data, error } = await upload;
+      if (error) {
+        alert(`Error al subir archivo ${file.name}: ${error.message}`);
+        resolve(null);
+        return;
+      }
+      onProgress(100);
+      resolve(data?.path ?? null);
+    });
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     let urls: string[] = [...imagenURLs];
-
-    for (const image of imagenes) {
-      const fileName = `terrenos/${Date.now()}_${image.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("land-images")
-        .upload(fileName, image);
-
-      if (uploadError) {
-        alert("Error al subir una imagen");
+    for (let i = 0; i < imagenes.length; i++) {
+      setUploadProgressImages(Math.round((i / imagenes.length) * 100));
+      const path = await uploadFileWithProgress("land-images", imagenes[i], () => {});
+      if (path) {
+        const { data: urlData } = supabase.storage.from("land-images").getPublicUrl(path);
+        if (urlData?.publicUrl) urls.push(urlData.publicUrl);
+      } else {
         setLoading(false);
         return;
       }
+    }
+    setUploadProgressImages(100);
 
-      const { data: urlData } = supabase.storage
-        .from("land-images")
-        .getPublicUrl(fileName);
-
-      if (urlData?.publicUrl) {
-        urls.push(urlData.publicUrl);
+    let videoUrls: string[] = [...videoURLs];
+    for (let i = 0; i < videos.length; i++) {
+      setUploadProgressVideos(Math.round((i / videos.length) * 100));
+      const path = await uploadFileWithProgress("land-videos", videos[i], () => {});
+      if (path) {
+        const { data: urlData } = supabase.storage.from("land-videos").getPublicUrl(path);
+        if (urlData?.publicUrl) videoUrls.push(urlData.publicUrl);
+      } else {
+        setLoading(false);
+        return;
       }
     }
+    setUploadProgressVideos(100);
 
     let portadaFinal = portada;
-    if (!portadaFinal || !urls.includes(portadaFinal)) {
-      portadaFinal = urls.length > 0 ? urls[0] : "";
+    // Si la portada seleccionada no está en imágenes ni videos nuevos, pon primera de cada lista
+    if (!portadaFinal || (!urls.includes(portadaFinal) && !videoUrls.includes(portadaFinal))) {
+      portadaFinal = urls.length > 0 ? urls[0] : videoUrls.length > 0 ? videoUrls[0] : "";
     }
 
     const { error: updateError } = await supabase
@@ -166,6 +220,7 @@ export default function EditarTerreno() {
         servicios,
         documentacion,
         status,
+        videos: videoUrls,
       })
       .eq("id", id);
 
@@ -230,7 +285,7 @@ export default function EditarTerreno() {
         />
         <input
           type="text"
-          placeholder="Ubicación"
+          placeholder="Ubicación + link opcional"
           value={ubicacion}
           onChange={(e) => setUbicacion(e.target.value)}
           className="w-full p-2 border rounded"
@@ -299,7 +354,8 @@ export default function EditarTerreno() {
           onChange={(e) => setDocumentacion(e.target.value)}
           className="w-full p-2 border rounded"
         />
-        {/* Imágenes actuales */}
+
+        {/* Imágenes actuales y selector portada */}
         <div className="grid grid-cols-3 gap-2">
           {imagenURLs.map((url, idx) => (
             <div key={idx} className="relative border rounded overflow-hidden">
@@ -315,7 +371,7 @@ export default function EditarTerreno() {
               >
                 ✕
               </button>
-              <div className="absolute bottom-1 left-1">
+              <div className="absolute bottom-1 left-1 flex items-center">
                 <input
                   type="radio"
                   name="portada"
@@ -323,20 +379,59 @@ export default function EditarTerreno() {
                   onChange={() => setPortada(url)}
                   className="mr-1"
                 />
-                <span className="text-xs bg-white px-1 rounded">Portada</span>
+                <span className="text-xs bg-white px-1 rounded cursor-pointer">Portada</span>
               </div>
             </div>
           ))}
         </div>
-        {/* Nuevas imágenes */}
+        {/* Videos actuales y selector portada */}
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {videoURLs.map((url, idx) => (
+            <div key={idx} className="relative border rounded overflow-hidden">
+              <video
+                src={url}
+                controls
+                className="h-24 w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveVideo(url)}
+                className="absolute top-1 right-1 bg-red-600 text-white rounded-full px-2 py-1 text-xs hover:bg-red-700"
+              >
+                ✕
+              </button>
+              <div className="absolute bottom-1 left-1 flex items-center">
+                <input
+                  type="radio"
+                  name="portada"
+                  checked={portada === url}
+                  onChange={() => setPortada(url)}
+                  className="mr-1"
+                />
+                <span className="text-xs bg-white px-1 rounded cursor-pointer">Portada</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Botón para elegir archivos */}
+        <button
+          type="button"
+          onClick={() => fileInputRef.current && fileInputRef.current.click()}
+          className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded w-full"
+        >
+          Elegir imágenes o videos (MP4)
+        </button>
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,video/mp4"
           multiple
-          onChange={(e) => setImagenes(Array.from(e.target.files || []))}
-          className="block mt-2"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
         />
-        <div className="flex space-x-2">
+
+        <div className="flex space-x-2 mt-4">
           <button
             type="submit"
             disabled={loading}

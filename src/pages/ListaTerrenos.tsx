@@ -16,7 +16,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 interface Terreno {
   id: string;
-  title: string;         // Ajusta según tu DB (puede ser `titulo`)
+  title: string;       
   description: string;
   location: string;
   image_url: string;
@@ -264,15 +264,15 @@ function TerrenoCard({
           </div>
         ) : (
           <a
-            href={`https://wa.me/${terreno.whatsapp ?? '51999999999'}`}
+            href={`https://wa.me/${terreno.whatsapp ?? '51998026135'}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline block text-center mt-2"
-            aria-label="Contactar al propietario vía WhatsApp"
+            aria-label="Contactar a BITAFAM vía WhatsApp"
           >
             <Button className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700">
               <Phone className="h-4 w-4" />
-              <span>Contactar al propietario</span>
+              <span>Contactar BITAFAM</span>
             </Button>
           </a>
         )}
