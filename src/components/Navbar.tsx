@@ -196,17 +196,25 @@ const Navbar = () => {
           />
         </Link>
 
-        {/* Texto centrado oculto en móviles */}
-        {!isAdmin && (
-          <div className="hidden md:flex flex-grow justify-center mx-4 min-w-0">
-            <span
-              className="text-lg font-semibold text-gray-700 truncate"
-              style={{ fontFamily: "'Marisa', cursive", fontWeight: 700 }}
-            >
-              Tu socio confiable en la búsqueda del terreno perfecto...
-            </span>
-          </div>
-        )}
+{/* Texto centrado oculto en móviles */}
+{!isAdmin && (
+  <div className="hidden md:flex flex-grow justify-center mx-4 min-w-0">
+    <span
+      className="text-base md:text-lg font-semibold text-gray-700 truncate"
+      style={{ 
+        fontFamily: "'Jumper PERSONAL USE ONLY', cursive",
+        fontWeight: 700,
+        fontStyle: "italic",
+      }}
+    >
+      Tu socio confiable en la búsqueda del terreno perfecto...
+    </span>
+  </div>
+)}
+
+
+
+
 
         {/* Navegación y botones */}
         <nav className="flex items-center gap-2 flex-shrink-0">

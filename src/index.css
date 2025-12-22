@@ -99,3 +99,10 @@
     @apply bg-background text-foreground;
   }
 }
+@font-face {
+  font-family: 'Jumper PERSONAL USE ONLY';
+  src: url('/fonts/JumperPERSONALUSEONLY-BoldItalic.ttf') format('truetype');
+  font-weight: 200;
+  font-style: italic;
+  font-display: swap;
+}
