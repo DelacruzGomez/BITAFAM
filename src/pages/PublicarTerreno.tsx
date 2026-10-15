@@ -20,6 +20,10 @@ type Solicitud = {
   zonificacion: string;
   servicios: string;
   documentacion: string;
+  // Sincronización de atributos de edificación
+  habitaciones?: number;
+  banos?: number;
+  pisos?: number;
 };
 
 export default function PublicarTerreno() {
@@ -46,6 +50,12 @@ export default function PublicarTerreno() {
   const [zonificacion, setZonificacion] = useState(solicitud?.zonificacion || "");
   const [servicios, setServicios] = useState(solicitud?.servicios || "");
   const [documentacion, setDocumentacion] = useState(solicitud?.documentacion || "");
+  
+  // Atributos de edificación inicializados para coincidir con EditarTerreno
+  const [habitaciones, setHabitaciones] = useState<string>(solicitud?.habitaciones?.toString() || "0");
+  const [banos, setBanos] = useState<string>(solicitud?.banos?.toString() || "0");
+  const [pisos, setPisos] = useState<string>(solicitud?.pisos?.toString() || "0");
+
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [solicitudUserEstado, setSolicitudUserEstado] = useState<string | null>(null);
@@ -88,7 +98,7 @@ export default function PublicarTerreno() {
     checkUserRole();
   }, [reviewMode]);
 
-  const disableInputs = reviewMode && !isAdmin;
+    const disableInputs = reviewMode && !isAdmin;
 
   const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let rawValue = e.target.value;
@@ -149,7 +159,7 @@ export default function PublicarTerreno() {
   };
 
   const handleAddImageUrl = (url: string) => {
-    if (url.trim() && /^https?:\/\/.+\.(jpg|jpeg|png|webp|gif)$/i.test(url)) {
+    if (url.trim() && /^https?:\/\/.+\.(jpg|jpeg|png|webp|gif)\$/i.test(url)) {
       setImagenes((prev) => [...prev, url.trim()]);
     } else {
       alert("Ingresa una URL válida de imagen");
@@ -178,6 +188,8 @@ export default function PublicarTerreno() {
       alert("Su cuenta no está registrada correctamente.");
       return;
     }
+    
+    // Objeto alineado con la base de datos e incluyendo edificación
     const formularioDatos = {
       titulo,
       descripcion,
@@ -194,7 +206,12 @@ export default function PublicarTerreno() {
       zonificacion,
       servicios,
       documentacion,
+      // Se parsean los contadores para el flujo completo
+      habitaciones: habitaciones ? parseInt(habitaciones, 10) : 0,
+      banos: banos ? parseInt(banos, 10) : 0,
+      pisos: pisos ? parseInt(pisos, 10) : 0,
     };
+    
     const insertSolicitudPayload = {
       user_id: user.id,
       user_name: userData.name,
@@ -215,7 +232,8 @@ export default function PublicarTerreno() {
     setSolicitudUserCreatedAt(insertSolicitudPayload.created_at);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (reviewMode) return;
 
@@ -265,6 +283,10 @@ export default function PublicarTerreno() {
       zonificacion,
       servicios,
       documentacion,
+      // Sincronización de atributos de edificación con la base de datos
+      habitaciones: habitaciones ? parseInt(habitaciones, 10) : 0,
+      banos: banos ? parseInt(banos, 10) : 0,
+      pisos: pisos ? parseInt(pisos, 10) : 0,
     };
 
     console.log("[PublicarTerreno] formData -> land_properties.insert (handleSubmit)", insertLandPayload);
@@ -299,6 +321,8 @@ export default function PublicarTerreno() {
       return;
     }
     setLoading(true);
+    
+    // Extracción de datos de la solicitud incluyendo edificación condicional
     const {
       titulo,
       descripcion,
@@ -315,8 +339,13 @@ export default function PublicarTerreno() {
       zonificacion,
       servicios,
       documentacion,
+      habitaciones,
+      banos,
+      pisos,
     } = solicitud;
+    
     const portada = imagenes && imagenes.length > 0 ? imagenes[0] : null;
+    
     const insertLandFromSolicitudPayload = {
       user_id: userId,
       titulo,
@@ -336,7 +365,12 @@ export default function PublicarTerreno() {
       zonificacion,
       servicios,
       documentacion,
+      // Inserción limpia desde los datos almacenados en la solicitud previa
+      habitaciones: habitaciones ? Number(habitaciones) : 0,
+      banos: banos ? Number(banos) : 0,
+      pisos: pisos ? Number(pisos) : 0,
     };
+    
     console.log(
       "[PublicarTerreno] formData -> land_properties.insert (handleAceptarYPublicar)",
       insertLandFromSolicitudPayload
@@ -368,6 +402,7 @@ export default function PublicarTerreno() {
     setLoading(false);
     navigate("/");
   };
+
 
   const handleDenegarSolicitud = async () => {
     if (!solicitudId) {
@@ -410,61 +445,101 @@ export default function PublicarTerreno() {
         </p>
       )}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="text"
-          placeholder="Título"
-          value={titulo}
-          onChange={(e) => setTitulo(e.target.value)}
-          className="w-full p-2 border rounded"
-          required
-          disabled={disableInputs}
-        />
-        <textarea
-          placeholder="Descripción"
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          className="w-full p-2 border rounded"
-          required
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder={`Precio (${moneda === "PEN" ? "S/." : "US$"})`}
-          value={precio}
-          onChange={handlePrecioChange}
-          className="w-full p-2 border rounded"
-          required
-          inputMode="decimal"
-          disabled={disableInputs}
-        />
-        {precio && <div className="text-gray-500 mb-2">Precio formateado: {formatPrecio(precio)}</div>}
-        <select
-          value={moneda}
-          onChange={handleMonedaChange}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        >
-          <option value="PEN">Soles Peruanos (S/.)</option>
-          <option value="USD">Dólares Americanos (US$)</option>
-        </select>
-        <input
-          type="text"
-          placeholder="Área en m² (ej: 120)"
-          value={area}
-          onChange={(e) => setArea(e.target.value)}
-          className="w-full p-2 border rounded"
-          required
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder="Ubicación + link (ej: LA PAZ  https://maps..)"
-          value={ubicacion}
-          onChange={(e) => setUbicacion(e.target.value)}
-          className="w-full p-2 border rounded"
-          required
-          disabled={disableInputs}
-        />
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Título</label>
+          <input
+            type="text"
+            placeholder="Título"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
+            disabled={disableInputs}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Descripción</label>
+          <textarea
+            placeholder="Descripción"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
+            disabled={disableInputs}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Precio</label>
+            <input
+              type="text"
+              placeholder={`Precio (${moneda === "PEN" ? "S/." : "US$"})`}
+              value={precio}
+              onChange={handlePrecioChange}
+              className="w-full p-2 border rounded"
+              required
+              inputMode="decimal"
+              disabled={disableInputs}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Moneda</label>
+            <select
+              value={moneda}
+              onChange={handleMonedaChange}
+              className="w-full p-2 border rounded"
+              disabled={disableInputs}
+            >
+              <option value="PEN">Soles Peruanos (S/.)</option>
+              <option value="USD">Dólares Americanos (US$)</option>
+            </select>
+          </div>
+        </div>
+        {precio && <div className="text-gray-500 text-xs mt-1">Precio formateado: {formatPrecio(precio)}</div>}
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Área en m²</label>
+            <input
+              type="text"
+              placeholder="Área en m² (ej: 120)"
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              className="w-full p-2 border rounded"
+              required
+              disabled={disableInputs}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo de Propiedad</label>
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+              className="w-full p-2 border rounded"
+              disabled={disableInputs}
+            >
+              <option value="residencial">Residencial</option>
+              <option value="comercial">Comercial</option>
+              <option value="industrial">Industrial</option>
+              <option value="campestre">Campestre</option>
+              <option value="rural">Rural</option>
+              <option value="urbano">Urbano</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Ubicación</label>
+          <input
+            type="text"
+            placeholder="Ubicación + link (ej: LA PAZ  https://maps..)"
+            value={ubicacion}
+            onChange={(e) => setUbicacion(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
+            disabled={disableInputs}
+          />
+        </div>
         <div className="mt-1 flex flex-col space-y-1">
           {extraerLinks(ubicacion).map((link, index) => (
             <a
@@ -472,81 +547,132 @@ export default function PublicarTerreno() {
               href={link}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 underline"
+              className="text-blue-600 underline text-xs"
             >
               {link}
             </a>
           ))}
         </div>
-        <select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        >
-          <option value="residencial">Residencial</option>
-          <option value="comercial">Comercial</option>
-          <option value="industrial">Industrial</option>
-          <option value="campestre">Campestre</option>
-          <option value="rural">Rural</option>
-          <option value="urbano">Urbano</option>
-        </select>
-        <input
-          type="text"
-          placeholder="Dimensiones"
-          value={dimensiones}
-          onChange={(e) => setDimensiones(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder="Topografía"
-          value={topografia}
-          onChange={(e) => setTopografia(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder="Acceso"
-          value={acceso}
-          onChange={(e) => setAcceso(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder="Zonificación"
-          value={zonificacion}
-          onChange={(e) => setZonificacion(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder="Servicios disponibles"
-          value={servicios}
-          onChange={(e) => setServicios(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        />
-        <input
-          type="text"
-          placeholder="Documentación"
-          value={documentacion}
-          onChange={(e) => setDocumentacion(e.target.value)}
-          className="w-full p-2 border rounded"
-          disabled={disableInputs}
-        />
-        <input
-          type="file"
-          accept="image/*,video/mp4"
-          multiple
-          onChange={(e) => handleFileUpload(e.target.files)}
-          className="block"
-          disabled={disableInputs}
-        />
+
+        {/* Sección de Edificación (Habitaciones, Baños, Pisos) - Sincronizado */}
+        <div className="p-3 bg-gray-50 border rounded-lg space-y-3">
+          <h4 className="text-sm font-bold text-gray-700">Edificación / Construcción Opcional</h4>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">N° Habitaciones</label>
+              <input
+                type="number"
+                min="0"
+                value={habitaciones}
+                onChange={(e) => setHabitaciones(e.target.value)}
+                className="w-full p-2 border rounded bg-white"
+                disabled={disableInputs}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">N° Baños</label>
+              <input
+                type="number"
+                min="0"
+                value={banos}
+                onChange={(e) => setBanos(e.target.value)}
+                className="w-full p-2 border rounded bg-white"
+                disabled={disableInputs}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">N° Pisos</label>
+              <input
+                type="number"
+                min="0"
+                value={pisos}
+                onChange={(e) => setPisos(e.target.value)}
+                className="w-full p-2 border rounded bg-white"
+                disabled={disableInputs}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Dimensiones del lote (Frente / Fondo)</label>
+          <input
+            type="text"
+            placeholder="Dimensiones"
+            value={dimensiones}
+            onChange={(e) => setDimensiones(e.target.value)}
+            className="w-full p-2 border rounded"
+            disabled={disableInputs}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Topografía</label>
+          <input
+            type="text"
+            placeholder="Topografía"
+            value={topografia}
+            onChange={(e) => setTopografia(e.target.value)}
+            className="w-full p-2 border rounded"
+            disabled={disableInputs}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo de Acceso</label>
+          <input
+            type="text"
+            placeholder="Acceso"
+            value={acceso}
+            onChange={(e) => setAcceso(e.target.value)}
+            className="w-full p-2 border rounded"
+            disabled={disableInputs}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Zonificación</label>
+          <input
+            type="text"
+            placeholder="Zonificación"
+            value={zonificacion}
+            onChange={(e) => setZonificacion(e.target.value)}
+            className="w-full p-2 border rounded"
+            disabled={disableInputs}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Servicios Disponibles</label>
+          <input
+            type="text"
+            placeholder="Servicios disponibles"
+            value={servicios}
+            onChange={(e) => setServicios(e.target.value)}
+            className="w-full p-2 border rounded"
+            disabled={disableInputs}
+          />
+        </div>
+                <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Situación Legal / Documentación</label>
+          <input
+            type="text"
+            placeholder="Documentación"
+            value={documentacion}
+            onChange={(e) => setDocumentacion(e.target.value)}
+            className="w-full p-2 border rounded"
+            disabled={disableInputs}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Subir Archivos Multimedia</label>
+          <input
+            type="file"
+            accept="image/*,video/mp4"
+            multiple
+            onChange={(e) => handleFileUpload(e.target.files)}
+            className="block text-sm"
+            disabled={disableInputs}
+          />
+        </div>
+
         <div className="flex gap-2">
           <input
             type="url"
@@ -568,12 +694,13 @@ export default function PublicarTerreno() {
             Agregar
           </button>
         </div>
+
         {(imagenes.length > 0 || videos.length > 0) && (
           <div className="grid grid-cols-3 gap-2">
             {imagenes.map((img, idx) => (
               <div
                 key={`img-${idx}`}
-                className={`border-4 ${portadaIndex === idx ? "border-green-500" : "border-transparent"}`}
+                className={`border-4 rounded overflow-hidden ${portadaIndex === idx ? "border-green-500" : "border-transparent"}`}
               >
                 <img
                   src={img}
@@ -586,7 +713,7 @@ export default function PublicarTerreno() {
               </div>
             ))}
             {videos.map((videoUrl, idx) => (
-              <div key={`vid-${idx}`} className="border-4 border-transparent">
+              <div key={`vid-${idx}`} className="border-4 border-transparent rounded overflow-hidden">
                 <video
                   src={videoUrl}
                   className="w-full h-24 object-cover"
@@ -596,6 +723,7 @@ export default function PublicarTerreno() {
             ))}
           </div>
         )}
+
         {!reviewMode && solicitudUserEstado === "aceptado" && (
           <>
             <p className="text-green-600 font-semibold text-center mb-2">
@@ -629,6 +757,10 @@ export default function PublicarTerreno() {
                 setServicios("");
                 setDocumentacion("");
                 setPortadaIndex(0);
+                // Reseteo de atributos de edificación agregados para consistencia
+                setHabitaciones("0");
+                setBanos("0");
+                setPisos("0");
               }}
               className="w-full"
             >
@@ -636,6 +768,7 @@ export default function PublicarTerreno() {
             </Button>
           </>
         )}
+
         {!reviewMode && solicitudUserEstado !== "aceptado" && (
           <Button type="submit" disabled={loading} className="w-full">
             {loading
@@ -644,9 +777,10 @@ export default function PublicarTerreno() {
                 : "Enviando solicitud..."
               : isAdmin || solicitudUserEstado === "aceptado"
               ? "Publicar"
-              : "Solicitar publicación"}
+              : "Solicitar publicación al Administrador"}
           </Button>
         )}
+
         {reviewMode && isAdmin && (
           <div className="flex space-x-4">
             <Button
@@ -665,6 +799,7 @@ export default function PublicarTerreno() {
             </Button>
           </div>
         )}
+
         <Button
           type="button"
           onClick={() => navigate(-1)}

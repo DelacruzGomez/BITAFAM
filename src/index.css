@@ -1,3 +1,5 @@
+@import url('https://googleapis.com');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -96,13 +98,36 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    /* Agregamos font-sans para inyectar Montserrat como fuente base */
+    @apply bg-background text-foreground font-sans;
   }
 }
+
 @font-face {
   font-family: 'Jumper PERSONAL USE ONLY';
   src: url('/fonts/JumperPERSONALUSEONLY-BoldItalic.ttf') format('truetype');
   font-weight: 200;
   font-style: italic;
   font-display: swap;
+}
+/* ==========================================
+   ESTILOS COMPLEMENTARIOS PARA SWIPER 3D 
+   ========================================== */
+.swiper {
+  width: 100% !important;
+  display: block !important;
+  padding-top: 20px !important;
+  padding-bottom: 40px !important;
+}
+
+.swiper-wrapper {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important; /* Evita que salten a la siguiente línea */
+}
+
+.swiper-slide {
+  width: 320px !important; /* Ancho idéntico de tus tarjetas */
+  height: auto !important;
+  flex-shrink: 0 !important; /* Evita que las tarjetas colapsen al 0% */
 }

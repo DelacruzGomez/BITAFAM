@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
 	darkMode: ["class"],
@@ -18,6 +19,12 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				// Reemplaza la fuente por defecto de Tailwind por Montserrat
+				sans: ["Montserrat", "Helvetica", "Arial", "sans-serif"],
+				// Agrega la variante Raleway para cuando desees usarla en tus títulos
+				raleway: ["Raleway", "Helvetica", "Arial", "sans-serif"],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -92,5 +99,5 @@ export default {
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [tailwindcssAnimate],
 } satisfies Config;

@@ -16,6 +16,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import MisTerrenos from "./pages/MisTerrenos";
 import GestionTerrenos from "@/pages/GestionTerrenos";
 import EditarTerreno from "@/pages/EditarTerreno";
+import MisFavoritos from "./pages/MisFavoritos";
+
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,8 @@ const App = () => (
           <Route path="/MisTerrenos" element={<MisTerrenos />} />
           <Route path="/gestion" element={<GestionTerrenos />} />
           <Route path="/editar/:id" element={<EditarTerreno />} />
+          <Route path="/favoritos" element={<MisFavoritos />} />
+          
 
 
           {/* Rutas protegidas */}
