@@ -6,6 +6,7 @@ export default function EditarTerreno() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  
 
   const terrenoInicial = location.state?.terreno || null;
 
@@ -16,7 +17,7 @@ export default function EditarTerreno() {
   const [moneda, setMoneda] = useState(terrenoInicial?.moneda || "PEN");
   const [ubicacion, setUbicacion] = useState(terrenoInicial?.ubicacion || "");
   const [area, setArea] = useState(terrenoInicial?.area?.toString() || "");
-  const [tipo, setTipo] = useState(terrenoInicial?.tipo || "urbano");
+ const [tipo, setTipo] = useState(terrenoInicial?.tipo || "terreno"); 
   const [status, setStatus] = useState(terrenoInicial?.status || "disponible");
   const [imagenes, setImagenes] = useState<File[]>([]);
   const [imagenURLs, setImagenURLs] = useState<string[]>(terrenoInicial?.imagenes || []);
@@ -52,6 +53,9 @@ export default function EditarTerreno() {
     if (terrenoInicial) {
       setMoneda(terrenoInicial.moneda || "PEN");
       setPrecio(terrenoInicial.precio?.toString() || "");
+      // 🛠️ Sincronizamos la categoría nativa (terreno / casa) al cargar el estado local
+      setTipo(terrenoInicial.tipo || "terreno");
+      setZonificacion(terrenoInicial.zonificacion || "urbano");
       setVideos([]);
       setVideoURLs(terrenoInicial.videos || []);
       setHabitaciones(terrenoInicial.habitaciones?.toString() || "0");
@@ -80,14 +84,20 @@ export default function EditarTerreno() {
       setMoneda(data.moneda || "PEN");
       setUbicacion(data.ubicacion || "");
       setArea(data.area?.toString() || "");
-      setTipo(data.tipo || "urbano");
+      
+      // 🛠️ CORREGIDO: Mapeamos el tipo físico (terreno / casa) para evitar el cruce con zonificación
+      setTipo(data.tipo || "terreno");
+      
       setStatus(data.status || "disponible");
       setImagenURLs(data.imagenes || []);
       setPortada(data.portada || "");
       setDimensiones(data.dimensiones || "");
       setTopografia(data.topografia || "");
       setAcceso(data.acceso || "");
-      setZonificacion(data.zonificacion || "");
+      
+      // 🛠️ Sincronizamos la zonificación del lote desde Supabase de forma independiente
+      setZonificacion(data.zonificacion || "urbano");
+      
       setServicios(data.servicios || "");
       setDocumentacion(data.documentacion || "");
       
@@ -104,8 +114,38 @@ export default function EditarTerreno() {
     fetchData();
   }, [id, navigate, terrenoInicial]);
 
-  const handleRemoveImage = (url: string) => {
-    if (confirm("¿Seguro que quieres eliminar esta imagen?")) {
+  // FUNCIÓN INYECTADA: Elimina de forma real y física el archivo del Storage de Supabase
+  const handleEliminarArchivoFisico = async (urlCompleta: string, bucket: "land-images" | "land-videos") => {
+    try {
+      const parteBuscar = `/storage/v1/object/public/${bucket}/`;
+      if (!urlCompleta.includes(parteBuscar)) return;
+
+      // Extramos el path relativo (ej: "terrenos/17123_foto.jpg")
+      const rutaRelativaArchivo = urlCompleta.split(parteBuscar)[1];
+
+      if (rutaRelativaArchivo) {
+        const { error } = await supabase.storage
+          .from(bucket)
+          .remove([rutaRelativaArchivo]);
+
+        if (error) {
+          console.error(`Error al borrar del bucket ${bucket}:`, error.message);
+        } else {
+          console.log(`Archivo borrado físicamente con éxito de ${bucket}:`, rutaRelativaArchivo);
+        }
+      }
+    } catch (err) {
+      console.error("Error al procesar el borrado del Storage:", err);
+    }
+  };
+
+  // FUNCIÓN CORREGIDA: Borra la URL del estado y el archivo real del Storage
+  const handleRemoveImage = async (url: string) => {
+    if (confirm("¿Seguro que quieres eliminar esta imagen de forma permanente?")) {
+      // 1. Borrado físico en el Storage de Supabase
+      await handleEliminarArchivoFisico(url, "land-images");
+
+      // 2. Remoción lógica del arreglo de la base de datos
       const updated = imagenURLs.filter((img) => img !== url);
       setImagenURLs(updated);
       if (portada === url) {
@@ -114,8 +154,13 @@ export default function EditarTerreno() {
     }
   };
 
-  const handleRemoveVideo = (url: string) => {
-    if (confirm("¿Seguro que quieres eliminar este video?")) {
+  // FUNCIÓN CORREGIDA: Borra el video del estado y el archivo real del Storage
+  const handleRemoveVideo = async (url: string) => {
+    if (confirm("¿Seguro que quieres eliminar este video de forma permanente?")) {
+      // 1. Borrado físico en el Storage de Supabase
+      await handleEliminarArchivoFisico(url, "land-videos");
+
+      // 2. Remoción lógica del arreglo de la base de datos
       const updated = videoURLs.filter((vid) => vid !== url);
       setVideoURLs(updated);
       if (portada === url) {
@@ -128,6 +173,64 @@ export default function EditarTerreno() {
 
   const handleMonedaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setMoneda(e.target.value);
+  };
+
+  // FUNCIÓN INYECTADA: Comprime las imágenes en el navegador al 60% de calidad antes del upload
+    const comprimirImagenAntesDeSubir = (archivo: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!archivo.type.startsWith("image/")) {
+        resolve(archivo);
+        return;
+      }
+
+      const lector = new FileReader();
+      lector.readAsDataURL(archivo);
+      lector.onload = (evento) => {
+        const img = new Image();
+        img.src = evento.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          
+          // MODIFICACIÓN: Subimos a resolución Full HD para conservar detalles nítidos al hacer zoom
+          const MAX_WIDTH = 1920; 
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          
+          // Activamos el suavizado de imagen de alta calidad del navegador
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const nombreLimpio = archivo.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                const archivoComprimido = new File([blob], nombreLimpio, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(archivoComprimido);
+              } else {
+                resolve(archivo);
+              }
+            },
+            "image/jpeg",
+            0.8 // MODIFICACIÓN: Subimos al 80% de calidad para eliminar la borrosidad por completo
+          );
+        };
+      };
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,23 +256,31 @@ export default function EditarTerreno() {
     e.target.value = "";
   };
 
+
+ // FUNCIÓN OPTIMIZADA: Aplica compresión matemática en caliente antes de ejecutar el .upload
   async function uploadFileWithProgress(
     bucket: string,
     file: File,
     onProgress: (progress: number) => void
   ): Promise<string | null> {
     return new Promise(async (resolve) => {
+      // 🌟 INTERCEPCIÓN EN CALIENTE: Comprimimos el archivo si pertenece al bucket de imágenes
+      let archivoFinal = file;
+      if (bucket === "land-images") {
+        archivoFinal = await comprimirImagenAntesDeSubir(file);
+      }
+
       const timestamp = Date.now();
-      const cleanName = file.name.toLowerCase().replace(/[^a-z0-9.-]/g, "_");
+      const cleanName = archivoFinal.name.toLowerCase().replace(/[^a-z0-9.-]/g, "_");
       const fileName = `terrenos/${timestamp}_${cleanName}`;
 
-      const upload = supabase.storage.from(bucket).upload(fileName, file, {
+      const upload = supabase.storage.from(bucket).upload(fileName, archivoFinal, {
         upsert: true,
       });
 
       const { data, error } = await upload;
       if (error) {
-        alert(`Error al subir archivo ${file.name}: ${error.message}`);
+        alert(`Error al subir archivo ${archivoFinal.name}: ${error.message}`);
         resolve(null);
         return;
       }
@@ -258,7 +369,7 @@ export default function EditarTerreno() {
     return <p className="text-center mt-10">Cargando terreno...</p>;
   }
 
-  return (
+    return (
     <div className="p-4 max-w-xl mx-auto">
       <h2 className="text-2xl font-bold mb-4 text-center">Editar Terreno</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -308,6 +419,8 @@ export default function EditarTerreno() {
             </select>
           </div>
         </div>
+        
+        {/* 🛠️ BLOQUE COMPLETO DE ÁREA Y CATEGORÍA NATIVA CORREGIDO */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Área en m²</label>
@@ -321,21 +434,36 @@ export default function EditarTerreno() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo de Propiedad</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Categoría Principal</label>
             <select
               value={tipo}
               onChange={(e) => setTipo(e.target.value)}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded bg-white"
+              required
             >
-              <option value="residencial">Residencial</option>
-              <option value="comercial">Comercial</option>
-              <option value="industrial">Industrial</option>
-              <option value="campestre">Campestre</option>
-              <option value="rural">Rural</option>
-              <option value="urbano">Urbano</option>
+              <option value="terreno">Terreno</option>
+              <option value="casa">Casa</option>
             </select>
           </div>
         </div>
+
+        {/* 🛠️ NUEVO CAMPO: Conservamos tu clasificación en la columna zonificacion */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Clasificación / Zonificación</label>
+          <select
+            value={zonificacion}
+            onChange={(e) => setZonificacion(e.target.value)}
+            className="w-full p-2 border rounded bg-white"
+          >
+            <option value="urbano">Urbano</option>
+            <option value="residencial">Residencial</option>
+            <option value="comercial">Comercial</option>
+            <option value="industrial">Industrial</option>
+            <option value="campestre">Campestre</option>
+            <option value="rural">Rural</option>
+          </select>
+        </div>
+
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Ubicación en Google Maps / link</label>
           <input
@@ -359,6 +487,7 @@ export default function EditarTerreno() {
             <option value="reservado">Reservado</option>
           </select>
         </div>
+
 
         {/* Sección de Edificación (Habitaciones, Baños, Pisos) */}
         <div className="p-3 bg-gray-50 border rounded-lg space-y-3">

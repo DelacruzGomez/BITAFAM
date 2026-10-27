@@ -40,14 +40,20 @@ export default function PublicarTerreno() {
   const [moneda, setMoneda] = useState(solicitud?.moneda || "PEN");
   const [ubicacion, setUbicacion] = useState(solicitud?.ubicacion || "");
   const [area, setArea] = useState(solicitud?.area?.toString() || "");
-  const [tipo, setTipo] = useState(solicitud?.tipo || "urbano");
+  
+  // 🛠️ CORREGIDO: Cambiado "urbano" por "terreno" para sincronizar la categoría nativa
+  const [tipo, setTipo] = useState(solicitud?.tipo || "terreno");
+  
   const [imagenes, setImagenes] = useState<string[]>(solicitud?.imagenes || []);
   const [videos, setVideos] = useState<string[]>(solicitud?.videos || []);
   const [portadaIndex, setPortadaIndex] = useState(0);
   const [dimensiones, setDimensiones] = useState(solicitud?.dimensiones || "");
   const [topografia, setTopografia] = useState(solicitud?.topografia || "");
   const [acceso, setAcceso] = useState(solicitud?.acceso || "");
-  const [zonificacion, setZonificacion] = useState(solicitud?.zonificacion || "");
+  
+  // 🛠️ CORREGIDO: "urbano" pasa a ser el valor por defecto de la zonificación/uso de suelo
+  const [zonificacion, setZonificacion] = useState(solicitud?.zonificacion || "urbano");
+  
   const [servicios, setServicios] = useState(solicitud?.servicios || "");
   const [documentacion, setDocumentacion] = useState(solicitud?.documentacion || "");
   
@@ -68,6 +74,7 @@ export default function PublicarTerreno() {
         setIsAdmin(false);
         return;
       }
+
       const { data: userData, error: userDataError } = await supabase
         .from("users")
         .select("role")
@@ -98,8 +105,65 @@ export default function PublicarTerreno() {
     checkUserRole();
   }, [reviewMode]);
 
-    const disableInputs = reviewMode && !isAdmin;
+  const disableInputs = reviewMode && !isAdmin;
 
+  // FUNCIÓN INYECTADA: Comprime las imágenes en el navegador al 60% de calidad antes del upload
+  const comprimirImagenAntesDeSubir = (archivo: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!archivo.type.startsWith("image/")) {
+        resolve(archivo);
+        return;
+      }
+
+      const lector = new FileReader();
+      lector.readAsDataURL(archivo);
+      lector.onload = (evento) => {
+        const img = new Image();
+        img.src = evento.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          
+          // MODIFICACIÓN: Subimos a resolución Full HD para conservar detalles nítidos al hacer zoom
+          const MAX_WIDTH = 1920; 
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          
+          // Activamos el suavizado de imagen de alta calidad del navegador
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const nombreLimpio = archivo.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                const archivoComprimido = new File([blob], nombreLimpio, {
+                  type: "image/jpeg",
+                  lastModified: Date.now(),
+                });
+                resolve(archivoComprimido);
+              } else {
+                resolve(archivo);
+              }
+            },
+            "image/jpeg",
+            0.8 // MODIFICACIÓN: Subimos al 80% de calidad para eliminar la borrosidad por completo
+          );
+        };
+      };
+    });
+  };
   const handlePrecioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let rawValue = e.target.value;
     rawValue = rawValue.replace(/[^0-9.]/g, "");
@@ -121,15 +185,20 @@ export default function PublicarTerreno() {
     setMoneda(e.target.value);
   };
 
+  // FUNCIÓN OPTIMIZADA: Aplica compresión asíncrona en el bucle de subida
   const handleFileUpload = async (files: FileList | null) => {
     if (!files) return;
 
     for (const file of Array.from(files)) {
       let bucket = "";
       let fileName = "";
+      let fileToUpload = file;
+
       if (file.type.startsWith("image/")) {
         bucket = "land-images";
-        fileName = `terrenos/images/${Date.now()}_${file.name}`;
+        // 🌟 COMPRESIÓN EN CALIENTE: Procesamos la imagen antes de subirla
+        fileToUpload = await comprimirImagenAntesDeSubir(file);
+        fileName = `terrenos/images/${Date.now()}_${fileToUpload.name}`;
       } else if (file.type === "video/mp4") {
         bucket = "land-videos";
         fileName = `terrenos/videos/${Date.now()}_${file.name}`;
@@ -138,9 +207,10 @@ export default function PublicarTerreno() {
         continue;
       }
 
+      // Se envía el archivo optimizado ultra-ligero a tu bucket de Supabase
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(fileName, file);
+        .upload(fileName, fileToUpload);
 
       if (uploadError) {
         alert("Error al subir el archivo: " + file.name);
@@ -509,24 +579,77 @@ export default function PublicarTerreno() {
               required
               disabled={disableInputs}
             />
-          </div>
+          </div>{/* 🛠️ SELECTOR DE CATEGORÍA PRINCIPAL COMPATIBLE CON EL NAVBAR */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo de Propiedad</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Categoría Principal</label>
             <select
               value={tipo}
               onChange={(e) => setTipo(e.target.value)}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded bg-white"
+              required
               disabled={disableInputs}
             >
-              <option value="residencial">Residencial</option>
-              <option value="comercial">Comercial</option>
-              <option value="industrial">Industrial</option>
-              <option value="campestre">Campestre</option>
-              <option value="rural">Rural</option>
-              <option value="urbano">Urbano</option>
+              <option value="terreno">Terreno</option>
+              <option value="casa">Casa</option>
             </select>
           </div>
         </div>
+
+        {/* 🛠️ NUEVO CAMPO: Clasificación del suelo mapeado a zonificacion */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Clasificación / Zonificación</label>
+          <select
+            value={zonificacion}
+            onChange={(e) => setZonificacion(e.target.value)}
+            className="w-full p-2 border rounded bg-white"
+            disabled={disableInputs}
+          >
+            <option value="urbano">Urbano</option>
+            <option value="residencial">Residencial</option>
+            <option value="comercial">Comercial</option>
+            <option value="industrial">Industrial</option>
+            <option value="campestre">Campestre</option>
+            <option value="rural">Rural</option>
+          </select>
+        </div>
+          {/* 🛠️ CAMPOS DINÁMICOS: Solo aparecen en la UI si la categoría es "casa" */}
+        {tipo === "casa" && (
+          <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100 transition-all">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Habitaciones</label>
+              <input
+                type="number"
+                min="0"
+                value={habitaciones}
+                onChange={(e) => setHabitaciones(e.target.value)}
+                className="w-full p-2 border rounded bg-white"
+                disabled={disableInputs}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Baños</label>
+              <input
+                type="number"
+                min="0"
+                value={banos}
+                onChange={(e) => setBanos(e.target.value)}
+                className="w-full p-2 border rounded bg-white"
+                disabled={disableInputs}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Pisos</label>
+              <input
+                type="number"
+                min="0"
+                value={pisos}
+                onChange={(e) => setPisos(e.target.value)}
+                className="w-full p-2 border rounded bg-white"
+                disabled={disableInputs}
+              />
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Ubicación</label>

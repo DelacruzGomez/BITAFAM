@@ -1,17 +1,25 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
-import { Button } from "./ui/button";
-import { Phone, UserRoundMinusIcon, Bell, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button"; // Usando tu alias limpio nativo de la app
+import { Phone, UserRoundMinusIcon, Bell, Menu, X, Trees, Home } from "lucide-react";
+
 
 const Navbar = () => {
+  const navigate = useNavigate();
+  const location = useLocation(); 
   const { user, logout } = useAuth();
+  
+  // Guardamos la ruta actual para saber qué botón iluminar en verde
+  const rutaActual = location.pathname;
+
   const [profileName, setProfileName] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
   const [showNotificationAdmin, setShowNotificationAdmin] = useState(false);
   const [showNotificationUser, setShowNotificationUser] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const [solicitudesAdmin, setSolicitudesAdmin] = useState<
     {
       id: number;
@@ -26,8 +34,6 @@ const Navbar = () => {
 
   const notificationRefAdmin = useRef<HTMLDivElement>(null);
   const notificationRefUser = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-
   useEffect(() => {
     if (user?.id) {
       supabase
@@ -215,31 +221,46 @@ const Navbar = () => {
     }
   };
 
-  return (
-    <header className="bg-white shadow-md sticky top-0 z-50 w-full">
-      <div className="max-w-7xl mx-auto px-4 h-16 sm:h-20 flex items-center justify-between gap-4">
-        {/* Logo */}
-        <Link to="/" className="flex-shrink-0" onClick={() => setIsMobileMenuOpen(false)}>
-          <img
-            src="/bitafamcolor.png"
-            alt="Logo BITAFAM"
-            className="h-8 sm:h-10 md:h-12 w-auto object-contain"
-          />
-        </Link>
+  const [searchParams, setSearchParams] = useSearchParams();
+// Leemos la categoría actual de la URL. Si no hay, por defecto es vacío (todos).
+const categoriaActual = searchParams.get("tipo") || "";
 
-        {/* Slogan */}
+const seleccionarCategoria = (tipo: string) => {
+  if (tipo === "") {
+    searchParams.delete("tipo"); // Si elige "Todos", limpiamos la URL
+  } else {
+    searchParams.set("tipo", tipo);
+  }
+  setSearchParams(searchParams);
+};
+
+return (
+  <header className="bg-white shadow-md sticky top-0 z-50 w-full">
+    <div className="max-w-7xl mx-auto px-4 h-16 sm:h-20 flex items-center justify-between gap-4">
+      {/* Logo */}
+      <Link to="/" className="flex-shrink-0" onClick={() => setIsMobileMenuOpen(false)}>
+        <img
+          src="/bitafamcolor.webp"
+          alt="Logo BITAFAM"
+          className="h-8 sm:h-10 md:h-12 w-auto object-contain"
+        />
+      </Link>
+
+        {/* Slogan Comentado para evitar solapamiento visual en el diseño superior
         {!isAdmin && (
           <div className="hidden lg:flex flex-1 justify-center px-4 max-w-xl">
             <span
-            className="text-xs xl:text-sm font-semibold tracking-wider text-gray-500 text-center uppercase"
-            style={{ 
-              fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" 
-            }}
-          >
-            "Tu socio confiable en la búsqueda del terreno perfecto"
-          </span>
+              className="text-xs xl:text-sm font-semibold tracking-wider text-gray-500 text-center uppercase"
+              style={{ 
+                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" 
+              }}
+            >
+              "Tu socio confiable en la búsqueda del terreno perfecto"
+            </span>
           </div>
         )}
+        */}
+
 
         {/* Menú de Escritorio (Desktop) */}
         <div className="hidden md:flex items-center gap-3">
@@ -290,6 +311,35 @@ const Navbar = () => {
               )}
             </div>
           )}
+{/* NUEVOS BOTONES DE CATEGORIZACIÓN CENTRALES */}
+<div className="flex items-center space-x-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
+  
+  <Button
+    variant={rutaActual === "/terrenos" ? "default" : "outline"}
+    onClick={() => navigate("/terrenos")}
+    className={`h-10 text-sm font-semibold rounded-lg flex items-center gap-1.5 transition-all ${
+      rutaActual === "/terrenos"
+        ? "bg-green-600 text-white shadow-sm hover:bg-green-700 border-green-600"
+        : "bg-transparent text-gray-500 hover:text-gray-900 border-none shadow-none"
+    }`}
+  >
+    <Trees className="w-4 h-4" />
+    <span>Terrenos</span>
+  </Button>
+
+  <Button
+    variant={rutaActual === "/casas" ? "default" : "outline"}
+    onClick={() => navigate("/casas")}
+    className={`h-10 text-sm font-semibold rounded-lg flex items-center gap-1.5 transition-all ${
+      rutaActual === "/casas"
+        ? "bg-green-600 text-white shadow-sm hover:bg-green-700 border-green-600"
+        : "bg-transparent text-gray-500 hover:text-gray-900 border-none shadow-none"
+    }`}
+  >
+    <Home className="w-4 h-4" />
+    <span>Casas</span>
+  </Button>
+</div>
 
           {/* Notificaciones Usuario */}
           {isUser && (
@@ -350,14 +400,7 @@ const Navbar = () => {
               </div>
               
               {/* ENLACE NUEVO: Mis Favoritos Desktop */}
-              <Link to="/favoritos">
-                <Button variant="outline" className="h-10 text-sm font-semibold gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50/50 border-red-100">
-                  <svg xmlns="http://w3.org" fill="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-                  </svg>
-                  <span>Mis Favoritos</span>
-                </Button>
-              </Link>
+
               
               <Link to="/publicar">
                 <Button variant="outline" className="h-10 text-sm font-semibold">Publicar</Button>
@@ -369,61 +412,98 @@ const Navbar = () => {
 
         {/* Hamburguesa Móvil */}
         <div className="flex md:hidden items-center gap-2">
-          {isAdmin && solicitudesAdmin.length > 0 && (
-            <button onClick={() => { setIsMobileMenuOpen(true); setShowNotificationAdmin(true); }} className="relative p-2 text-red-600">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white">{solicitudesAdmin.length}</span>
-            </button>
-          )}
+  {isAdmin && solicitudesAdmin.length > 0 && (
+    <button 
+      onClick={() => { setIsMobileMenuOpen(true); setShowNotificationAdmin(true); }} 
+      className="relative p-2 text-red-600"
+    >
+      <Bell className="h-5 w-5" />
+      <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white">
+        {solicitudesAdmin.length}
+      </span>
+    </button>
+  )}
 
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 text-gray-700 hover:text-gray-900 focus:outline-none"
-            aria-label="Abrir menú"
-          >
-            {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
-        </div>
+  <button
+    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+    className="p-2 text-gray-700 hover:text-gray-900 focus:outline-none"
+    aria-label="Abrir menú"
+  >
+    {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+  </button>
+</div>
+</div>
+
+{/* Menú Desplegable Móvil */}
+{isMobileMenuOpen && (
+  <div className="sm:hidden bg-white border-b border-gray-100 px-4 pt-2 pb-6 space-y-4 shadow-inner">
+
+        {/* BOTONES DE CATEGORIZACIÓN PARA CELULARES CENTRADOS */}
+    <div className="flex flex-col space-y-2">
+      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 text-center">
+        Categorías
+      </p>
+      
+      {/* 🛠️ Se cambió a grid-cols-2 y max-w-xs con mx-auto para centrar todo el bloque */}
+      <div className="grid grid-cols-2 gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100 max-w-sm mx-auto w-full">
+        
+        <button
+          onClick={() => { navigate("/terrenos"); setIsMobileMenuOpen(false); }}
+          className={`py-2.5 text-xs font-bold text-center rounded-lg transition-all duration-200 ${
+            rutaActual === "/terrenos" 
+              ? "bg-green-600 text-white shadow-sm" 
+              : "text-gray-500 active:bg-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          Terrenos
+        </button>
+
+        <button
+          onClick={() => { navigate("/casas"); setIsMobileMenuOpen(false); }}
+          className={`py-2.5 text-xs font-bold text-center rounded-lg transition-all duration-200 ${
+            rutaActual === "/casas" 
+              ? "bg-green-600 text-white shadow-sm" 
+              : "text-gray-500 active:bg-gray-200 hover:bg-gray-100"
+          }`}
+        >
+          Casas
+        </button>
+
       </div>
+    </div>
 
-      {/* Menú Desplegable Móvil */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-4 shadow-inner absolute left-0 w-full z-50">
-          {user && (
-            <div className="flex items-center gap-2 p-2.5 bg-gray-50 border rounded-lg">
-              <UserRoundMinusIcon className="h-5 w-5 text-gray-500" />
-              <span className="text-sm font-semibold text-gray-800 truncate">{profileName || user.email}</span>
-            </div>
-          )}
 
-          <div className="flex flex-col gap-2">
-            {userRole !== "admin" && (
-              <a href="https://wa.me" target="_blank" rel="noopener noreferrer" className="w-full">
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-11">
-                  <Phone className="h-4 w-4 mr-2" />
-                  Contactar BITAFAM
-                </Button>
-              </a>
-            )}
+    {/* 🌟 BLOQUE DE USUARIO BIEN ENCAPSULADO Y DISTRIBUIDO */}
+    {user && (
+      <div className="flex items-center gap-2 p-2.5 bg-gray-50 border rounded-lg">
+        <UserRoundMinusIcon className="h-5 w-5 text-gray-500" />
+        <span className="text-sm font-semibold text-gray-800 truncate">
+          {profileName || user.email}
+        </span>
+      </div>
+    )}
 
-            {user && (
-              <Link to="/favoritos" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full h-11 font-bold gap-2 text-red-600 border-red-100 hover:bg-red-50">
-                  <svg xmlns="http://w3.org" fill="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-                  </svg>
-                  Mis Favoritos
-                </Button>
-              </Link>
-            )}
+    {/* Contenedor vertical de acciones con espaciado consistente */}
+    <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+      
+      {/* Botón de Contacto por WhatsApp */}
+      {userRole !== "admin" && (
+        <a href="https://wa.me" target="_blank" rel="noopener noreferrer" className="w-full">
+          <Button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-11 rounded-xl">
+            <Phone className="h-4 w-4 mr-2" />
+            Contactar BITAFAM
+          </Button>
+        </a>
+      )}
+      {/* Botón de Publicar Propiedad */}
+      {user && (
+        <Link to="/publicar" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
+          <Button variant="outline" className="w-full h-11 font-bold rounded-xl">
+            Publicar Propiedad
+          </Button>
+        </Link>
+      )}
 
-            {user && (
-              <Link to="/publicar" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full h-11 font-bold">
-                  Publicar Propiedad
-                </Button>
-              </Link>
-            )}
 
             {!user ? (
               <Link to="/login" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>

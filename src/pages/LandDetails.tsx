@@ -192,12 +192,7 @@ export function LandDetails() {
             placeholder="Documentación"
           />
 
-          <div className="flex justify-end gap-2 mt-4">
-            <Button onClick={handleUpdate}>Guardar</Button>
-            <Button variant="outline" onClick={() => setIsEditing(false)}>
-              Cancelar
-            </Button>
-          </div>
+
         </>
       ) : (
         <>

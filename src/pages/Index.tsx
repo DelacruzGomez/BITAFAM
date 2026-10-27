@@ -1,4 +1,5 @@
 // src/pages/Index.tsx
+import { useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Swiper, SwiperSlide } from 'swiper/react';
 
 // 2. Importar los módulos necesarios (incluyendo el efecto Coverflow)
-import { EffectCoverflow, Navigation } from 'swiper/modules';
+import {Navigation } from 'swiper/modules';
 
 
 // 3. Importar los estilos obligatorios de Swiper
@@ -99,18 +100,22 @@ const TextWithLinks = ({ text }: { text: string }) => {
   );
 };
 
+// Cambiado de .png a .webp para una carga instantánea y ultra ligera
 const carouselImages = [
-  "/quinua2.png",
-  "/banner.png",
-  "/fondo.png",
-  "/fondo2.png",
-  "/fondo3.png",
+  "/quinua2.webp",
+  "/banner.webp",
+  "/fondo.webp",
+  "/fondo2.webp",
+  "/fondo3.webp",
 ];
 
 const ITEMS_PER_PAGE = 6;
 
+
 const Index = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tipoUrl = searchParams.get("tipo") || ""; 
   const { user } = useAuth();
   const [terrenos, setTerrenos] = useState<Terreno[]>([]);
   const [filtroTipo, setFiltroTipo] = useState("todos");
@@ -122,26 +127,6 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState(1);
   // Estado para almacenar la lista de IDs de terrenos favoritos del usuario actual
   const [idsFavoritos, setIdsFavoritos] = useState<string[]>([]);
-
-  // 1. Cargar los favoritos del usuario al montar el catálogo
-  useEffect(() => {
-    const cargarFavoritosHome = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("land_favorites")
-        .select("land_id")
-        .eq("user_id", user.id);
-
-      if (!error && data) {
-        // Guardamos solo un arreglo de strings con los IDs
-        setIdsFavoritos(data.map((fav) => fav.land_id));
-      }
-    };
-    cargarFavoritosHome();
-  }, []);
-
   // Helper para saber si un terreno específico es favorito
   const isFavorito = (landId: string) => idsFavoritos.includes(landId);
 
@@ -182,6 +167,8 @@ const Index = () => {
   };
 
 
+    // 1. Lee los parámetros de la URL enviados por el Navbar (terreno / casa)
+
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentImageIndex((prevIndex) =>
@@ -208,21 +195,49 @@ const Index = () => {
     fetchTerrenos();
   }, []);
 
+  // 🛠️ LÓGICA DE FILTRADO CORREGIDA Y ACUMULATIVA
   const terrenosFiltrados = terrenos.filter((terreno) => {
-    const cumpleTipo =
-      filtroTipo === "todos" ||
-      terreno.tipo.toLowerCase() === filtroTipo.toLowerCase();
-    const cumplePrecio =
-      filtroPrecio === "todos" ||
-      (filtroPrecio === "bajo" && terreno.precio < 80000) ||
-      (filtroPrecio === "medio" &&
-        terreno.precio >= 80000 &&
-        terreno.precio <= 120000) ||
-      (filtroPrecio === "alto" && terreno.precio > 120000);
-    const cumpleBusqueda =
-      terreno.titulo.toLowerCase().includes(terminoBusqueda.toLowerCase()) ||
-      terreno.ubicacion.toLowerCase().includes(terminoBusqueda.toLowerCase());
-    return cumpleTipo && cumplePrecio && cumpleBusqueda;
+    // A. Filtro del Navbar Global (URL): Separa Casas de Terrenos
+    if (tipoUrl !== "") {
+      if (terreno.tipo?.toLowerCase() !== tipoUrl.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // B. 🛠️ CORREGIDO: Filtro Tipo del Desplegable (Apunta a zonificacion y lee siglas rdm)
+    if (filtroTipo !== "todos") {
+      const valorZonificacion = ((terreno as any).zonificacion || "").toLowerCase().trim();
+      const filtroSeleccionado = filtroTipo.toLowerCase().trim();
+
+      if (filtroSeleccionado === "residencial") {
+        if (valorZonificacion !== "residencial" && valorZonificacion !== "rdm") {
+          return false;
+        }
+      } else {
+        if (valorZonificacion !== filtroSeleccionado) {
+          return false;
+        }
+      }
+    }
+
+    // C. Filtro de Precios
+    const precioNumerico = Number(terreno.precio || 0);
+    if (filtroPrecio !== "todos") {
+      if (filtroPrecio === "bajo" && precioNumerico >= 80000) return false;
+      if (filtroPrecio === "medio" && (precioNumerico < 80000 || precioNumerico > 120000)) return false;
+      if (filtroPrecio === "alto" && precioNumerico <= 120000) return false;
+    }
+
+    // D. Filtro de Buscador de Texto
+    const textoBusqueda = terminoBusqueda.toLowerCase().trim();
+    if (textoBusqueda !== "") {
+      const cumpleTexto =
+        (terreno.titulo || "").toLowerCase().includes(textoBusqueda) ||
+        (terreno.ubicacion || "").toLowerCase().includes(textoBusqueda);
+      if (!cumpleTexto) return false;
+    }
+
+    return true; // Si pasa todas las condiciones, se incluye
   });
 
   const totalPages = Math.ceil(terrenosFiltrados.length / ITEMS_PER_PAGE);
@@ -231,7 +246,7 @@ const Index = () => {
     currentPage * ITEMS_PER_PAGE
   );
 
-    const formatPrecio = (precio: number, moneda: string = "PEN") => {
+  const formatPrecio = (precio: number, moneda: string = "PEN") => {
     const currencyCode = moneda === "USD" ? "USD" : "PEN";
     const locale = moneda === "USD" ? "en-US" : "es-PE";
     return new Intl.NumberFormat(locale, {
@@ -276,69 +291,72 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-50">
-      {/* Navbar */}
-      <Navbar />
+  <div className="min-h-screen bg-[#28292A] text-slate-100">
       
-      {/* Hero Section con carrusel de fondo */}
-      <section
-        className="relative h-auto md:h-96 text-white overflow-hidden bg-cover bg-center transition-all duration-1000"
-        style={{
-          backgroundImage: `url('${carouselImages[currentImageIndex]}')`,
-        }}
-        aria-label="Sección principal de bienvenida con imagen de fondo en carrusel"
-      >
-        <div className="absolute inset-0 bg-black opacity-30"></div>
-        <div className="relative container mx-auto px-4 h-full flex flex-col md:flex-row items-center md:items-start">
-          <div className="max-w-2xl z-10 mt-8 md:mt-0 text-center md:text-left mx-auto md:mx-0">
-            <h2 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
-              Encuentra tu Terreno Ideal en Ayacucho
-            </h2>
-            <p className="text-base md:text-xl mb-6">
-              Invierte en el futuro. Descubre terrenos con ubicación privilegiada
-              en la histórica ciudad de Ayacucho.
-            </p>
-            
-            {/* Botón con el interceptor de seguridad asociado */}
-            <Link to="/gestion" onClick={handleGestionClick} className="inline-block">
-              <Button
-                size="lg"
-                className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-semibold"
-                aria-label="Gestionar mis terrenos publicados"
-              >
-                Gestionar Mis Terrenos
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
+{/* Hero Section con carrusel de fondo corregido, ultra ligero y fluido */}
+<section
+  className="relative h-auto min-h-[450px] md:h-[400px] lg:h-[450px] text-white overflow-hidden bg-cover bg-center transition-all duration-1000 ease-in-out flex items-center will-change-[background-image]"
+  style={{
+    backgroundImage: `url('${carouselImages[currentImageIndex]}')`,
+  }}
+  aria-label="Sección principal de bienvenida con imagen de fondo en carrusel"
+>
+  {/* Capa de superposición para mejorar contraste */}
+  <div className="absolute inset-0 bg-black/40 z-0"></div>
 
-            {/* TARJETA SOBRE NOSOTROS */}
-            <div
-              className="
-                relative w-full max-w-sm bg-white rounded-xl shadow-lg p-6 md:p-8 text-gray-800 z-30 mt-6 mb-4 
-                md:absolute md:bottom-12 md:right-2 md:mt-0 md:w-120
-              "
-            >
-              <h2 className="text-2xl font-bold mb-1 text-green-700">
-                Sobre Nosotros
-              </h2>
-              <p className="text-sm text-justify text-gray-600 leading-relaxed">
-                BITAFAM es tu socio confiable en la búsqueda del terreno perfecto.
-                Nos dedicamos a conectar a nuestros clientes con las mejores
-                oportunidades de inversión, ofreciendo un servicio transparente,
-                profesional y personalizado. Nuestra misión es ayudarte a
-                encontrar el lugar ideal para construir tus sueños.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+  {/* Contenedor principal estructurado en dos columnas */}
+  <div className="relative container mx-auto px-4 py-8 z-10 w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center h-full">
+    
+    {/* COLUMNA IZQUIERDA: Textos de Bienvenida */}
+    <div className="text-center md:text-left flex flex-col justify-center max-w-xl mx-auto md:mx-0">
+      <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-4 leading-tight tracking-tight drop-shadow-md">
+        Encuentra tu Terreno Ideal en Ayacucho
+      </h2>
+      <p className="text-sm sm:text-base md:text-lg text-gray-100 mb-6 font-medium leading-relaxed drop-shadow-sm">
+        Invierte en el futuro. Descubre terrenos con ubicación privilegiada
+        en la histórica ciudad de Ayacucho.
+      </p>
+      
+      {/* Botón de Gestión */}
+      <div className="self-center md:self-start">
+        <Link to="/gestion" onClick={handleGestionClick} className="inline-block">
+          <Button
+            size="lg"
+            className="bg-amber-500 hover:bg-amber-600 text-gray-900 font-bold transition-all px-6 py-5 rounded-xl shadow-md active:scale-95"
+            aria-label="Gestionar mis terrenos publicados"
+          >
+            Gestionar Mis Terrenos
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+        </Link>
+      </div>
+    </div>
 
-       {/* FILTROS */}
+    {/* COLUMNA DERECHA: Tarjeta Sobre Nosotros */}
+    <div className="flex justify-center md:justify-end w-full">
+      <div className="w-full max-w-sm bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-6 sm:p-8 text-gray-800 border border-white/20 transition-all transform hover:translate-y-[-2px]">
+        <h2 className="text-2xl font-extrabold mb-3 text-green-700 font-sans tracking-tight">
+          Sobre Nosotros
+        </h2>
+        <p className="text-xs sm:text-sm text-justify text-gray-600 leading-relaxed font-medium">
+          BITAFAM es tu socio confiable en la búsqueda del terreno perfecto.
+          Nos dedicamos a conectar a nuestros clientes con las mejores
+          oportunidades de inversión, ofreciendo un servicio transparente,
+          profesional y personalizado. Nuestra misión es ayudarte a
+          encontrar el lugar ideal para construir tus sueños.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+       {/* FILTROS CORREGIDOS CON ALTO CONTRASTE */}
       <section className="container mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-gray-100">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             
-            {/* Buscador */}
+            {/* Buscador - Corregido texto oculto y placeholder */}
             <div className="flex items-center space-x-2 flex-1 min-w-0 w-full">
               <Input
                 placeholder="Buscar por ubicación o nombre..."
@@ -350,7 +368,7 @@ const Index = () => {
                     setCurrentPage(1);
                   }
                 }}
-                className="flex-1 min-w-0"
+                className="flex-1 min-w-0 bg-white text-gray-900 placeholder:text-gray-500 font-medium h-11 border-gray-200 focus:ring-green-600 focus:border-green-600"
                 aria-label="Buscar por ubicación o nombre"
               />
               <button
@@ -359,17 +377,17 @@ const Index = () => {
                   setTerminoBusqueda(busqueda);
                   setCurrentPage(1);
                 }}
-                className="text-gray-400 hover:text-gray-600 p-2 focus:outline-none"
+                className="text-gray-500 hover:text-green-700 p-2 focus:outline-none transition-colors"
                 aria-label="Buscar"
               >
                 <Search className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Filtro Tipo */}
+            {/* Filtro Tipo - Corregido texto opaco */}
             <div className="flex items-center space-x-2 w-full md:w-auto justify-between md:justify-start">
               <div className="flex items-center space-x-2 flex-1 md:flex-initial">
-                <Filter className="text-gray-400 h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                <Filter className="text-gray-500 h-5 w-5 flex-shrink-0" aria-hidden="true" />
                 <Select
                   value={filtroTipo}
                   onValueChange={(val) => {
@@ -378,23 +396,23 @@ const Index = () => {
                   }}
                   aria-label="Filtrar por tipo"
                 >
-                  <SelectTrigger className="w-full md:w-40 bg-white">
+                  <SelectTrigger className="w-full md:w-44 bg-white text-gray-900 font-semibold h-11 border-gray-200 focus:ring-green-600">
                     <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los tipos</SelectItem>
-                    <SelectItem value="residencial">Residencial</SelectItem>
-                    <SelectItem value="comercial">Comercial</SelectItem>
-                    <SelectItem value="industrial">Industrial</SelectItem>
-                    <SelectItem value="campestre">Campestre</SelectItem>
-                    <SelectItem value="rural">Rural</SelectItem>
-                    <SelectItem value="urbano">Urbano</SelectItem>
+                  <SelectContent className="bg-white text-gray-900 font-medium">
+                    <SelectItem value="todos" className="focus:bg-green-50 focus:text-green-900">Todos los tipos</SelectItem>
+                    <SelectItem value="residencial" className="focus:bg-green-50 focus:text-green-900">Residencial</SelectItem>
+                    <SelectItem value="comercial" className="focus:bg-green-50 focus:text-green-900">Comercial</SelectItem>
+                    <SelectItem value="industrial" className="focus:bg-green-50 focus:text-green-900">Industrial</SelectItem>
+                    <SelectItem value="campestre" className="focus:bg-green-50 focus:text-green-900">Campestre</SelectItem>
+                    <SelectItem value="rural" className="focus:bg-green-50 focus:text-green-900">Rural</SelectItem>
+                    <SelectItem value="urbano" className="focus:bg-green-50 focus:text-green-900">Urbano</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* Filtro Precio */}
+            {/* Filtro Precio - Corregido texto opaco */}
             <div className="w-full md:w-auto">
               <Select
                 value={filtroPrecio}
@@ -404,20 +422,21 @@ const Index = () => {
                 }}
                 aria-label="Filtrar por precio"
               >
-                <SelectTrigger className="w-full md:w-40 bg-white">
+                <SelectTrigger className="w-full md:w-44 bg-white text-gray-900 font-semibold h-11 border-gray-200 focus:ring-green-600">
                   <SelectValue placeholder="Precio" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos los precios</SelectItem>
-                  <SelectItem value="bajo">Hasta S/. 80,000</SelectItem>
-                  <SelectItem value="medio">S/. 80,000 - S/. 120,000</SelectItem>
-                  <SelectItem value="alto">Más de S/. 120,000</SelectItem>
+                <SelectContent className="bg-white text-gray-900 font-medium">
+                  <SelectItem value="todos" className="focus:bg-green-50 focus:text-green-900">Todos los precios</SelectItem>
+                  <SelectItem value="bajo" className="focus:bg-green-50 focus:text-green-900">Hasta S/. 80,000</SelectItem>
+                  <SelectItem value="medio" className="focus:bg-green-50 focus:text-green-900">S/. 80,000 - S/. 120,000</SelectItem>
+                  <SelectItem value="alto" className="focus:bg-green-50 focus:text-green-900">Más de S/. 120,000</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
           </div>
         </div>
+
 
        {/* RESULTADOS */}
 {loading ? (
@@ -430,272 +449,223 @@ const Index = () => {
       Se encontraron {terrenosFiltrados.length} terrenos
     </p>
 
-    {/* Contenedor fluido para evitar deformaciones en pantallas grandes */}
-    <div style={{ display: 'block', width: '100%', overflow: 'hidden', position: 'relative' }} className="group">
-      <Swiper
-        modules={[EffectCoverflow, Navigation]}
-        effect={'coverflow'}
-        grabCursor={true}
-        centeredSlides={true}
-        slidesPerView={'auto'}
-        loop={terrenosFiltrados.length > 2}
-        coverflowEffect={{
-          rotate: 25,       // Ángulo tridimensional de las tarjetas adyacentes
-          stretch: -15,     // Cercanía entre tarjetas laterales
-          depth: 150,       // Alejamiento del fondo
-          modifier: 1,
-          slideShadows: true, // Habilita las sombras reales de profundidad
-        }}
-        navigation={{
-          nextEl: '.swiper-button-next-custom',
-          prevEl: '.swiper-button-prev-custom',
-        }}
-        className="w-full"
-        style={{ width: '100%', padding: '25px 0' }}
-      >
-        {terrenosFiltrados.map((terreno) => {
-          // Bypass seguro de tipos para colecciones
-          const t = terreno as any;
-          // COMPONENTE MULTIMEDIA TOTALMENTE AUTÓNOMO (COLOCAR AL FINAL DEL ARCHIVO, FUERA DE INDEX)
+    {/* Contenedor en rejilla (Grid) vertical sin slider */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 px-4">
+      {terrenosFiltrados.map((terreno) => (
+        <div 
+          key={terreno.id} 
+          className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col font-sans transition-all duration-300 hover:shadow-md h-full justify-between w-full max-w-[340px] mx-auto"
+        >
+          {/* Carrusel Local de Multimedia */}
+          <TarjetaMediaSliderHome terreno={terreno} />
+
+          {/* Contenido de la Tarjeta */}
+          <div className="p-5 flex flex-col flex-grow relative">
+
+            {/* ✅ CÓDIGO CORREGIDO PARA TYPESCRIPT: Casteado a 'any' para evitar el error de tipado */}
+            <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 block pr-8">
+              {(() => {
+                const mapeoClasificacion: Record<string, string> = {
+                  "urbano": "URBANO",
+                  "rural": "RURAL",
+                  "campestre": "CAMPESTRE",
+                  "residencial": "RESIDENCIAL",
+                  "rdm": "RESIDENCIAL", 
+                  "comercial": "COMERCIAL",
+                  "industrial": "INDUSTRIAL",
+                  "np": "URBANO" 
+                };
+
+                // 🛠️ Forzamos a TypeScript a leer 'zonificacion' usando (terreno as any)
+                const valorBD = ((terreno as any).zonificacion || "").toLowerCase().trim();
+                const clasificacionLimpia = mapeoClasificacion[valorBD] || "URBANO"; 
+
+                return `${terreno.tipo || "TERRENO"} • ${clasificacionLimpia}`;
+              })()}
+            </span>
 
 
 
-          return (
-            <SwiperSlide 
-              key={terreno.id} 
-              className="!w-[320px] !h-auto p-2"
-              style={{ flexShrink: 0, display: 'block' }}
-            >
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col font-sans transition-all duration-300 hover:shadow-md h-full justify-between">
-                
-                {/* Carrusel Local de Multimedia */}
-                <TarjetaMediaSliderHome terreno={terreno} />
+            <h4 className="text-lg font-bold text-gray-900 tracking-tight leading-snug mb-1 uppercase line-clamp-1 pr-8">
+              {terreno.titulo}
+            </h4>
 
-                {/* Contenido de la Tarjeta */}
-                <div className="p-5 flex flex-col flex-grow relative">
-                  
-                  {/* BOTÓN INTERACTIVO: Corazón de Me Gusta / Favoritos */}
-                  <button
-                    type="button"
-                    title={isFavorito(String(terreno.id)) ? "Quitar de favoritos" : "Guardar como favorito"}
-                    onClick={(e) => handleToggleFavoritoHome(String(terreno.id), e)}
-                    className="absolute top-5 right-5 z-10 text-red-500 hover:scale-110 transition-transform duration-200 focus:outline-none"
-                  >
-                    <svg 
-                      xmlns="http://w3.org" 
-                      fill={isFavorito(String(terreno.id)) ? "currentColor" : "none"} 
-                      viewBox="0 0 24 24" 
-                      strokeWidth={1.5} 
-                      stroke="currentColor" 
-                      className="w-6 h-6"
+            {/* Lógica de ubicación unificada e inteligente */}
+            {(() => {
+              const textoCompleto = terreno.ubicacion || "";
+              const urlRegex = /https?:\/\/[^\s\]]+/g;
+              const links = textoCompleto.match(urlRegex);
+              const direccionLimpia = textoCompleto.replace(urlRegex, "").trim();
+
+              return (
+                <div className="flex flex-col gap-2 mb-4">
+                  {/* Dirección física limpia (Sin URLs visibles) */}
+                  <p className="text-sm text-gray-600 font-medium truncate">
+                    {direccionLimpia || "Dirección disponible en el mapa"}
+                  </p>
+
+                  {/* Botón interactivo de Google Maps si el enlace existe */}
+                  {links && links.length > 0 ? (
+                    <a 
+                      href={links[0]} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all w-full sm:w-auto justify-center self-start"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-                    </svg>
-                  </button>
+                      <svg 
+                        className="w-3.5 h-3.5 flex-shrink-0" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2.5" 
+                        viewBox="0 0 24 24" 
+                        xmlns="http://w3.org"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                      </svg>
+                      <span>Ver Ubicación en Google Maps</span>
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">Mapa no adjuntado</span>
+                  )}
+                </div>
+              );
+            })()}
 
-                  <span className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1 pr-8">
-                    Terreno {terreno.tipo && `• ${terreno.tipo}`}
+            {/* Características Técnicas */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-600 text-2xl border-b border-gray-900 pb-4 mb-4">
+              <div className="flex items-center gap-2" title="Área Total">
+                <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://w3.org">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 4v16M15 4v16M4 9h16M4 15h16" />
+                </svg>
+                <span className="font-semibold text-gray-800">
+                  {terreno.area} <span className="text-gray-500 font-normal text-base">m²</span>
+                </span>
+              </div>
+
+              {terreno.habitaciones && terreno.habitaciones > 0 ? (
+                <div className="flex items-center gap-2" title="Habitaciones">
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://w3.org">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M5.25 6h13.5A1.5 1.5 0 0120.25 7.5v4.5H3.75v-4.5A1.5 1.5 0 015.25 6zM3.75 15.75v2.25m16.5-2.25v2.25" />
+                  </svg>
+                  <span className="font-semibold text-gray-800">
+                    {terreno.habitaciones} <span className="text-gray-500 font-normal text-xs">hab</span>
                   </span>
+                </div>
+              ) : null}
 
-                  <h4 className="text-lg font-bold text-gray-900 tracking-tight leading-snug mb-1 uppercase line-clamp-1 pr-8">
-                    {terreno.titulo}
-                  </h4>
+              {terreno.banos && terreno.banos > 0 ? (
+                <div className="flex items-center gap-2" title="Baños">
+                  <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://w3.org">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 7.5h2.25M3 19.5h18M18 19.5v-9A2.25 2.25 0 0015.75 8.25H8.25A2.25 2.25 0 006 10.5v9M8.25 8.25V6a2.25 2.25 0 012.25-2.25h3M10.5 12h3" />
+                  </svg>
+                  <span className="font-semibold text-gray-800">
+                    {terreno.banos} <span className="text-gray-500 font-normal text-xs">baño</span>
+                  </span>
+                </div>
+              ) : null}
+            </div>
 
-                      {/* Lógica de ubicación unificada e inteligente */}
-                      {(() => {
-                        const textoCompleto = terreno.ubicacion || "";
-                        const urlRegex = /https?:\/\/[^\s\]]+/g;
-                        const links = textoCompleto.match(urlRegex);
-                        const direccionLimpia = textoCompleto.replace(urlRegex, "").trim();
+            <p className="text-gray-500 text-xs leading-relaxed mb-5 line-clamp-2">
+              {terreno.descripcion}
+            </p>
 
-                        return (
-                          <div className="flex flex-col gap-2 mb-4">
-                            {/* Dirección física limpia (Sin URLs visibles) */}
-                            <p className="text-sm text-gray-600 font-medium truncate">
-                              {direccionLimpia || "Dirección disponible en el mapa"}
-                            </p>
+            <div className="mb-5 mt-auto">
+              <span className="text-2xl font-bold text-gray-900 tracking-tight">
+                {formatPrecio(terreno.precio, terreno.moneda || "PEN")}
+              </span>
+            </div>
 
-                            {/* Botón interactivo de Google Maps si el enlace existe */}
-                            {links && links.length > 0 ? (
-                              <a 
-                                href={links[0]} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all w-full sm:w-auto justify-center self-start"
-                              >
-                                <svg 
-                                  className="w-3.5 h-3.5 flex-shrink-0" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  strokeWidth="2.5" 
-                                  viewBox="0 0 24 24" 
-                                  xmlns="http://w3.org"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                                </svg>
+            <Link to={`/terreno/${terreno.id}`} className="w-full block">
+              <button
+                type="button"
+                className="w-full py-2.5 px-4 bg-green-900 hover:bg-green-700 text-white font-bold text-sm rounded-xl transition-all duration-200 shadow-sm hover:shadow active:scale-[0.98]"
+              >
+                Ver Detalles
+              </button>
+            </Link>
 
-                                <span>Ver Ubicación en Google Maps</span>
-                              </a>
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">Mapa no adjuntado</span>
-                            )}
-                          </div>
-                        );
-                      })()}
+            {/* Controles Administrativos */}
+            {user && user.id === terreno.user_id && (
+              <div className="flex flex-col gap-2 mt-4 border-t border-gray-100 pt-4 w-full">
+                <Button 
+  variant="outline" 
+  size="sm" 
+  className="text-xs font-medium w-full text-black" 
+  onClick={async () => { 
+    const nuevoEstado = terreno.status === "vendido" ? "disponible" : "vendido"; 
+    const { error } = await supabase 
+      .from("land_properties") 
+      .update({ status: nuevoEstado }) 
+      .eq("id", terreno.id); 
 
-                      {/* Características Técnicas */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-600 text-sm border-b border-gray-100 pb-4 mb-4">
-                        <div className="flex items-center gap-2" title="Área Total">
-                          <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 4v16M15 4v16M4 9h16M4 15h16" />
-                          </svg>
-                          <span className="font-semibold text-gray-800">
-                            {terreno.area} <span className="text-gray-500 font-normal text-xs">m²</span>
-                          </span>
-                        </div>
+    if (!error) { 
+      setTerrenos((prev) => 
+        prev.map((t) => (t.id === terreno.id ? { ...t, status: nuevoEstado } : t)) 
+      ); 
+    } else { 
+      alert("Error al actualizar estado"); 
+    } 
+  }} 
+> 
+  {terreno.status === "vendido" ? "Marcar como disponible" : "Marcar como vendido"} 
+</Button>
 
-                        {terreno.habitaciones && terreno.habitaciones > 0 ? (
-                          <div className="flex items-center gap-2" title="Habitaciones">
-                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M5.25 6h13.5A1.5 1.5 0 0120.25 7.5v4.5H3.75v-4.5A1.5 1.5 0 015.25 6zM3.75 15.75v2.25m16.5-2.25v2.25" />
-                            </svg>
-                            <span className="font-semibold text-gray-800">
-                              {terreno.habitaciones} <span className="text-gray-500 font-normal text-xs">hab</span>
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {terreno.banos && terreno.banos > 0 ? (
-                          <div className="flex items-center gap-2" title="Baños">
-                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 7.5h2.25M3 19.5h18M18 19.5v-9A2.25 2.25 0 0015.75 8.25H8.25A2.25 2.25 0 006 10.5v9M8.25 8.25V6a2.25 2.25 0 012.25-2.25h3M10.5 12h3" />
-                            </svg>
-                            <span className="font-semibold text-gray-800">
-                              {terreno.banos} <span className="text-gray-500 font-normal text-xs">baño</span>
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <p className="text-gray-500 text-xs leading-relaxed mb-5 line-clamp-2">
-                        {terreno.descripcion}
-                      </p>
-
-                      <div className="mb-5 mt-auto">
-                        <span className="text-2xl font-bold text-gray-900 tracking-tight">
-                          {formatPrecio(terreno.precio, terreno.moneda || "PEN")}
-                        </span>
-                      </div>
-
-                      <Link to={`/terreno/${terreno.id}`} className="w-full block">
-                        <button
-                          type="button"
-                          className="w-full py-2.5 px-4 bg-green-900 hover:bg-green-700 text-white font-bold text-sm rounded-xl transition-all duration-200 shadow-sm hover:shadow active:scale-[0.98]"
-                        >
-                          Ver Detalles
-                        </button>
-                      </Link>
-
-                      {/* Controles Administrativos */}
-                      {user && user.id === terreno.user_id && (
-                        <div className="flex flex-col gap-2 mt-4 border-t border-gray-100 pt-4 w-full">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs font-medium w-full"
-                            onClick={async () => {
-                              const nuevoEstado = terreno.status === "vendido" ? "disponible" : "vendido";
-                              const { error } = await supabase
-                                .from("land_properties")
-                                .update({ status: nuevoEstado })
-                                .eq("id", terreno.id);
-                              if (!error) {
-                                setTerrenos((prev) =>
-                                  prev.map((t) => (t.id === terreno.id ? { ...t, status: nuevoEstado } : t))
-                                );
-                              } else {
-                                alert("Error al actualizar estado");
-                              }
-                            }}
-                          >
-                            {terreno.status === "vendido" ? "Marcar como disponible" : "Marcar como vendido"}
-                          </Button>
-                          <div className="grid grid-cols-2 gap-2 w-full">
-                            <Button
-                              size="sm"
-                              className="text-xs font-medium"
-                              onClick={() => navigate(`/editar/${terreno.id}`, { state: { terreno } })}
-                            >
-                              Editar
-                            </Button>
-
-
-             <Button
-              variant="destructive"
-              size="sm"
-              className="text-xs font-medium"
-              onClick={async () => {
-                const confirmar = window.confirm("¿Seguro que deseas eliminar este terreno?");
-                if (!confirmar) return;
                 
-                const { error } = await supabase
-                  .from("land_properties")
-                  .delete()
-                  .eq("id", terreno.id);
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  <Button
+                    size="sm"
+                    className="text-xs font-medium"
+                    onClick={() => navigate(`/editar/${terreno.id}`, { state: { terreno } })}
+                  >
+                    Editar
+                  </Button>
 
-                if (!error) {
-                  setTerrenos((prev) => prev.filter((t) => t.id !== terreno.id));
-                } else {
-                  alert("Error al eliminar");
-                }
-              }}
-            >
-              Eliminar
-            </Button>
-          </div>
+
+
+                             <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-xs font-medium"
+                  onClick={async () => {
+                    const confirmar = window.confirm("¿Seguro que deseas eliminar este terreno?");
+                    if (!confirmar) return;
+                    
+                    const { error } = await supabase
+                      .from("land_properties")
+                      .delete()
+                      .eq("id", terreno.id);
+
+                    if (!error) {
+                      setTerrenos((prev) => prev.filter((t) => t.id !== terreno.id));
+                    } else {
+                      alert("Error al eliminar");
+                    }
+                  }}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+    ))}
+  </div>
+
+  {/* 5. Mensaje de control si no hay resultados */}
+  {terrenosFiltrados.length === 0 && (
+    <div className="text-center py-12" role="status" aria-live="polite">
+      <p className="text-gray-500 text-lg font-sans">
+        No se encontraron {tipoUrl === 'casa' ? 'casas' : tipoUrl === 'terreno' ? 'terrenos' : 'propiedades'} que coincidan con la selección.
+      </p>
     </div>
-  </div>
-</SwiperSlide>
-);
-        })}
-</Swiper>
-
-  {/* 3. Botones Flotantes de Navegación (Puestos al final del contenedor fluido) */}
-  <button 
-    className="swiper-button-prev-custom absolute left-2 md:left-[calc(50%-185px)] top-[28%] md:top-1/2 md:-translate-y-1/2 z-30 bg-white/75 backdrop-blur-md text-gray-800 hover:text-green-600 p-2.5 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center w-12 h-12 border border-white/40 hover:scale-110 active:scale-95 hover:shadow-green-500/20 disabled:opacity-0 disabled:pointer-events-none"
-    aria-label="Anterior terreno"
-  >
-    {/* Icono de flecha izquierda unificada */}
-    <svg xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-    </svg>
-  </button>
-
-  <button 
-    className="swiper-button-next-custom absolute right-2 md:right-[calc(50%-185px)] top-[28%] md:top-1/2 md:-translate-y-1/2 z-30 bg-white/75 backdrop-blur-md text-gray-800 hover:text-green-600 p-2.5 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center w-12 h-12 border border-white/40 hover:scale-110 active:scale-95 hover:shadow-green-500/20 disabled:opacity-0 disabled:pointer-events-none"
-    aria-label="Siguiente terreno"
-  >
-    {/* Icono de flecha derecha unificada */}
-    <svg xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-6 h-6">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-    </svg>
-  </button>
-</div>
-
-{terrenosFiltrados.length === 0 && (
-  <div className="text-center py-12" role="status" aria-live="polite">
-    <p className="text-gray-500 text-lg font-sans">
-      No se encontraron terrenos que coincidan con los filtros seleccionados.
-    </p>
-  </div>
-)}
+  )}
 </>
 )}
 </section>
+
 
 
 
@@ -824,7 +794,7 @@ const Index = () => {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <img
-                  src="/bitafam.png"
+                  src="/bitafam.webp"
                   alt="Logo BITAFAM"
                   className="h-12 w-auto object-contain"
                 />

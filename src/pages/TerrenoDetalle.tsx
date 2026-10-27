@@ -48,7 +48,6 @@ const TerrenoDetalle = () => {
   const [terreno, setTerreno] = useState<any>(null);
   const [actualMediaIndex, setActualMediaIndex] = useState(0);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [guardado, setGuardado] = useState(false);
   const [modalMediaUrl, setModalMediaUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,38 +67,11 @@ const TerrenoDetalle = () => {
     fetchTerreno();
   }, [id]);
 // Sincronización del estado "Me gusta" con la base de datos de Supabase
-  useEffect(() => {
-    const verificarFavorito = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !id) {
-        setGuardado(false);
-        return;
-      }
 
-      const { data, error } = await supabase
-        .from("land_favorites")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("land_id", id)
-        .maybeSingle();
-
-      if (!error && data) {
-        setGuardado(true);
-      } else {
-        setGuardado(false);
-      }
-    };
-
-    verificarFavorito();
-  }, [id]);
-
-  useEffect(() => {
-    setGuardado(false);
-  }, [id]);
 
   if (!terreno) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
+  return (
+  <div className="min-h-screen bg-[#28292A] text-slate-100">
         <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-gray-100 max-w-sm w-full mx-4">
           <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <X className="w-6 h-6" />
@@ -154,44 +126,6 @@ const TerrenoDetalle = () => {
     setModalMediaUrl(galeriaMedia[index]);
   };
 
-    const toggleGuardar = async () => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      alert("Debes iniciar sesión para guardar terrenos en tus favoritos.");
-      return;
-    }
-
-    if (guardado) {
-      // Si ya estaba en favoritos, lo eliminamos de forma permanente
-      const { error } = await supabase
-        .from("land_favorites")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("land_id", id);
-
-      if (!error) {
-        setGuardado(false);
-      } else {
-        console.error("Error al quitar favorito:", error.message);
-      }
-    } else {
-      // Si no estaba en favoritos, lo añadimos vinculándolo con el ID del usuario
-      const { error } = await supabase
-        .from("land_favorites")
-        .insert({
-          user_id: user.id,
-          land_id: id
-        });
-
-      if (!error) {
-        setGuardado(true);
-      } else {
-        console.error("Error al agregar favorito:", error.message);
-      }
-    }
-  };
-
 
   // Corregido con concatenación simple sin caracteres de escape (\)
   const gmailLink = "https://google.com" + 
@@ -210,7 +144,7 @@ const TerrenoDetalle = () => {
   const whatsappLinkFinal = "https://wa.me/" + numeroWhatsApp + "?text=" + encodeURIComponent(mensajeInmobiliario);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+  <div className="min-h-screen bg-[#28292A] text-slate-100">
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center space-x-2 text-green-600 hover:text-green-700">
@@ -218,17 +152,18 @@ const TerrenoDetalle = () => {
             <span>Volver al catálogo</span>
           </Link>
           <div className="flex items-center space-x-2">
+             {/* Botón Compartir - Letras oscuras sobre fondo blanco */}
             <Button
               variant="outline"
               size="sm"
+              className="bg-white text-slate-900 border-gray-300 hover:bg-gray-100 hover:text-black transition-colors duration-200 font-bold rounded-xl h-10 px-4 shadow-xs"
               onClick={async () => {
                 const shareData = {
                   title: terreno.titulo || "Terreno Ideal en Ayacucho",
-                  text: `Mira este terreno: ${terreno.titulo || "Gran oportunidad de inversión en Ayacucho"}.`,
+                 text: `Te comparto los detalles de esta destacada propiedad: ${terreno.titulo || "Terreno exclusivo disponible en Ayacucho"}.`,
                   url: window.location.href,
                 };
 
-                // Verifica si el navegador soporta el menú de compartir nativo
                 if (navigator.share) {
                   try {
                     await navigator.share(shareData);
@@ -236,24 +171,14 @@ const TerrenoDetalle = () => {
                     console.log("Compartir cancelado o con errores", err);
                   }
                 } else {
-                  // Respaldo en caso de que el navegador de escritorio no soporte Web Share API
                   navigator.clipboard.writeText(window.location.href).then(() => {
                     alert("Tu navegador no soporta el menú de compartir. ¡El link ha sido copiado al portapapeles!");
                   });
                 }
               }}
             >
-              <Share2 className="h-4 w-4 mr-2" />
+              <Share2 className="h-4 w-4 mr-2 text-slate-700 stroke-[2.5]" />
               Compartir
-            </Button>
-            <Button
-              variant={guardado ? "default" : "outline"}
-              size="sm"
-              onClick={toggleGuardar}
-              title={guardado ? "Quitar de favoritos" : "Guardar como favorito"}
-            >
-              <Heart className={`h-4 w-4 mr-2 ${guardado ? "text-red-600" : ""}`} />
-              {guardado ? "Guardado" : "Guardar"}
             </Button>
           </div>
         </div>
