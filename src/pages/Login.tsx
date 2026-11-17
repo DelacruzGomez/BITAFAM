@@ -49,7 +49,7 @@ export default function Login() {
     <section
       className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-green-50 to-green-100"
       style={{
-        backgroundImage: "url('fondologin.png')",
+        backgroundImage: "url('fondologin.webp')",
         backgroundRepeat: "no-repeat",
         backgroundPosition: "center",
         backgroundSize: "cover",

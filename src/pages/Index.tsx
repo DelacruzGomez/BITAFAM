@@ -332,7 +332,7 @@ const Index = () => {
       </div>
     </div>
 
-    {/* COLUMNA DERECHA: Tarjeta Sobre Nosotros */}
+    {/*Tarjeta Sobre Nosotros */}
     <div className="flex justify-center md:justify-end w-full">
       <div className="w-full max-w-sm bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-6 sm:p-8 text-gray-800 border border-white/20 transition-all transform hover:translate-y-[-2px]">
         <h2 className="text-2xl font-extrabold mb-3 text-green-700 font-sans tracking-tight">

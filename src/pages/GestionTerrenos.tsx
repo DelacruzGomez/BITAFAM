@@ -141,7 +141,7 @@ export default function GestionTerrenos() {
       <header
         className="relative w-full h-48 rounded-md overflow-hidden flex items-center justify-between px-6"
         style={{
-          backgroundImage: "url('/fondo.png')",
+          backgroundImage: "url('/fondo.webp')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
